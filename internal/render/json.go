@@ -74,11 +74,13 @@ type DocADR struct {
 
 // DocGap is a roadmap need with no ADR behind it yet (ref: null).
 type DocGap struct {
-	Phase  string   `json:"phase"`
-	Kind   string   `json:"kind"`
-	Gist   string   `json:"gist"`
-	Owner  string   `json:"owner"`
-	Blocks []string `json:"blocks"`
+	Phase string `json:"phase"`
+	// PhaseStatus is the phase's status in roadmap.yaml (e.g. "in-flight", "horizon").
+	PhaseStatus string   `json:"phase_status"`
+	Kind        string   `json:"kind"`
+	Gist        string   `json:"gist"`
+	Owner       string   `json:"owner"`
+	Blocks      []string `json:"blocks"`
 }
 
 // BuildDocument converts the board into its document. Slices are never nil, so a
@@ -128,7 +130,7 @@ func BuildDocument(board *domain.DispatchBoard) Document {
 					blocks = []string{}
 				}
 				doc.Gaps = append(doc.Gaps, DocGap{
-					Phase: p.ID, Kind: string(n.Kind), Gist: strings.TrimSpace(n.Gist), Owner: n.Owner, Blocks: blocks,
+					Phase: p.ID, PhaseStatus: p.Status, Kind: string(n.Kind), Gist: strings.TrimSpace(n.Gist), Owner: n.Owner, Blocks: blocks,
 				})
 			}
 		}

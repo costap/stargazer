@@ -119,6 +119,7 @@
   "gaps": [
     {
       "phase": "phase-1",
+      "phase_status": "",
       "kind": "decision",
       "gist": "Region count",
       "owner": "product",
