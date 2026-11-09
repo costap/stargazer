@@ -1,0 +1,51 @@
+# roadmap.yaml
+# Milestones and the decisions each still needs. Recorded by hand, in a PR.
+# Nothing derivable is recorded here: ADR status comes from the ADR file,
+# ticket status from the tracker.
+roadmap_as_of: "2026-06-01"
+launch: "2026-09-15"          # L-0. Stargazer counts down to this date.
+
+phases:
+  - id: phase-1-launch
+    name: Web checkout launch
+    target: "2026-Q3"
+    status: in-flight
+    scope: >
+      Web checkout only, 3 payment methods, 1 region.
+      Region count is unresolved: see the open decision below.
+    needs:
+      - kind: decision                 # ref: null is the point of this file
+        ref: null
+        gist: Region count at launch, and which regions
+        owner: product
+        blocks: [PROJ-101, PROJ-102, REL-03]
+      - kind: adr
+        ref: product/0099              # track-qualified, always
+        owner: me
+        note: accepting it needs a partial-supersession note on 2-product/0037
+      - kind: adr
+        ref: 3-platform/0031
+        owner: me
+      - kind: design
+        ref: designs/checkout-risk
+        owner: me
+        squad: checkout
+
+  - id: phase-2-mobile
+    name: Mobile app
+    target: "2026-H2"
+    status: horizon
+    needs:
+      - kind: adr
+        ref: 2-product/0016
+        owner: me
+        note: >
+          Proposed since 2026-03-18, blocked on a proof of concept about peak load.
+          Oldest Proposed ADR and on this critical path, so prioritise rather than close.
+      - kind: decision
+        ref: null
+        gist: Offline cart ownership and the sync path
+        owner: me
+
+# owner: me | <squad> | product | devops
+# `me` is what splits the work you do from the work you delegate.

@@ -1,0 +1,19 @@
+# Copy to .stargazer.yaml. Relative paths resolve against this file's directory.
+adr:
+  wip_limit: 3
+  groups:
+    - namespace: "2-product"
+      dir: "docs/adrs/product"
+    - namespace: "3-platform"
+      dir: "docs/adrs/platform"
+
+roadmap:
+  file: "roadmap.yaml"
+
+signals:
+  # A local file or an http(s) URL. Optional.
+  source: "https://astrometrics.pfclabs.net/data/signals.json"
+
+dispatch:
+  output: "ARCH_DISPATCH.md"
+  silent: false

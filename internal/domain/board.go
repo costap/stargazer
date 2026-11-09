@@ -1,0 +1,134 @@
+package domain
+
+import (
+	"time"
+)
+
+// QueuedTalk represents a prioritized video or conference talk extracted
+// from Astrometrics signals and playlist digests for offline listening.
+type QueuedTalk struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	URL      string `json:"url"`
+	Category string `json:"category"`
+	Context  string `json:"context"` // Explains why it was captured or which digest curated it
+	Source   string `json:"source"`  // e.g. "Signal Note", "StrimziCon2026", "argocon2026"
+}
+
+// DispatchBoard is the aggregate root representing the current operational
+// architecture state across upstream roadmap epochs, active design fronts,
+// squad hand-offs, candidate radar PoCs, and offline audio ingestion.
+type DispatchBoard struct {
+	// SyncedAt records the timestamp when the board was reconciled.
+	SyncedAt time.Time `json:"synced_at"`
+
+	// WIPLimit defines the maximum number of concurrent proposed ADRs / design fronts
+	// that can be active before triggering cognitive concurrency saturation warnings.
+	WIPLimit int `json:"wip_limit"`
+
+	// Roadmap represents the hand-authored upstream delivery milestones (phases and needs).
+	Roadmap *RoadmapManifest `json:"roadmap,omitempty"`
+
+	// ActiveADRs contains all scanned ADRs currently in "Proposed" review state.
+	ActiveADRs []ADR `json:"active_adrs"`
+
+	// Handoffs contains all scanned ADRs in "Accepted" state awaiting ticket slicing.
+	Handoffs []ADR `json:"handoffs"`
+
+	// Signals contains candidate technologies from V'Ger / Astrometrics (e.g. status: spotted).
+	Signals []SignalItem `json:"signals,omitempty"`
+
+	// Digests contains playlist digests from conferences (GoogleCloudNext, StrimziCon, IstioCon, etc.).
+	Digests []SignalDigest `json:"digests,omitempty"`
+
+	// AudioQueue holds extracted YouTube conference talks for off-desk intake (walks, transit).
+	AudioQueue []QueuedTalk `json:"audio_queue,omitempty"`
+
+	// Warnings lists inputs that could not be read. A board with warnings is degraded:
+	// what it shows may be incomplete, and renderers must say so.
+	Warnings []string `json:"warnings,omitempty"`
+
+	// ADRUnknown is true when the ADR sources could not be read, so the pipeline and
+	// WIP are unknown. An empty ActiveADRs then means "not read", never "none".
+	ADRUnknown bool `json:"adr_unknown,omitempty"`
+}
+
+// NewDispatchBoard creates an initialized DispatchBoard instance with defaults.
+func NewDispatchBoard(
+	roadmap *RoadmapManifest,
+	adrs []ADR,
+	signals []SignalItem,
+	digests []SignalDigest,
+	wipLimit int,
+) *DispatchBoard {
+	board := &DispatchBoard{
+		SyncedAt: time.Now(),
+		WIPLimit: wipLimit,
+		Roadmap:  roadmap,
+		Signals:  signals,
+		Digests:  digests,
+	}
+
+	for _, item := range adrs {
+		switch item.Status {
+		case StatusProposed:
+			board.ActiveADRs = append(board.ActiveADRs, item)
+		case StatusAccepted:
+			board.Handoffs = append(board.Handoffs, item)
+		}
+	}
+
+	return board
+}
+
+// Degraded reports whether any input could not be read.
+func (b *DispatchBoard) Degraded() bool {
+	return len(b.Warnings) > 0
+}
+
+// HasWIPViolation returns true if active proposed ADRs exceed the configured WIP limit.
+func (b *DispatchBoard) HasWIPViolation() bool {
+	return len(b.ActiveADRs) > b.WIPLimit
+}
+
+// ActiveWIPCount returns the number of active proposed ADRs in flight.
+func (b *DispatchBoard) ActiveWIPCount() int {
+	return len(b.ActiveADRs)
+}
+
+// ReadyHandoffCount returns the number of accepted ADRs ready for story generation.
+func (b *DispatchBoard) ReadyHandoffCount() int {
+	return len(b.Handoffs)
+}
+
+// CriticalPathCount returns the number of roadmap needs explicitly assigned to "owner: me".
+func (b *DispatchBoard) CriticalPathCount() int {
+	if b.Roadmap == nil {
+		return 0
+	}
+	count := 0
+	for _, phase := range b.Roadmap.Phases {
+		for _, need := range phase.Needs {
+			if need.IsMine() {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+// BlockedDownstreamCount returns the number of roadmap needs owned by external teams (product, devops, squads).
+func (b *DispatchBoard) BlockedDownstreamCount() int {
+	if b.Roadmap == nil {
+		return 0
+	}
+	count := 0
+	for _, phase := range b.Roadmap.Phases {
+		for _, need := range phase.Needs {
+			if !need.IsMine() {
+				count++
+			}
+		}
+	}
+	return count
+}
