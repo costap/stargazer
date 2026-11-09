@@ -29,6 +29,13 @@ type Config struct {
 		Explicit bool `mapstructure:"-"`
 	} `mapstructure:"roadmap"`
 
+	State struct {
+		// File records which Accepted ADRs have been dispatched. A missing file at
+		// the default path means nothing is dispatched yet.
+		File     string `mapstructure:"file"`
+		Explicit bool   `mapstructure:"-"`
+	} `mapstructure:"state"`
+
 	Signals struct {
 		Source      string   `mapstructure:"source"`
 		FilterRings []string `mapstructure:"filter_rings"`
@@ -60,6 +67,8 @@ func Load(v *viper.Viper, overridden ...string) (*Config, error) {
 	}
 	cfg.Roadmap.Explicit = flagSet["roadmap.file"] || envSet("roadmap.file") || v.InConfig("roadmap.file")
 
+	cfg.State.Explicit = envSet("state.file") || v.InConfig("state.file")
+
 	configDir := ""
 	if used := v.ConfigFileUsed(); used != "" {
 		if abs, err := filepath.Abs(filepath.Dir(used)); err == nil {
@@ -72,6 +81,9 @@ func Load(v *viper.Viper, overridden ...string) (*Config, error) {
 
 	if fromConfig("roadmap.file") {
 		cfg.Roadmap.File = resolve(configDir, cfg.Roadmap.File)
+	}
+	if fromConfig("state.file") {
+		cfg.State.File = resolve(configDir, cfg.State.File)
 	}
 	if fromConfig("dispatch.output") {
 		cfg.Dispatch.Output = resolve(configDir, cfg.Dispatch.Output)

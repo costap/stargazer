@@ -35,6 +35,10 @@ type DispatchBoard struct {
 	// Handoffs contains all scanned ADRs in "Accepted" state awaiting ticket slicing.
 	Handoffs []ADR `json:"handoffs"`
 
+	// DispatchedHidden counts Accepted ADRs left out of Handoffs because they are
+	// marked dispatched. Zero when every Accepted ADR is listed.
+	DispatchedHidden int `json:"dispatched_hidden,omitempty"`
+
 	// Signals contains candidate technologies from V'Ger / Astrometrics (e.g. status: spotted).
 	Signals []SignalItem `json:"signals,omitempty"`
 
@@ -98,7 +102,13 @@ func (b *DispatchBoard) ActiveWIPCount() int {
 
 // ReadyHandoffCount returns the number of accepted ADRs ready for story generation.
 func (b *DispatchBoard) ReadyHandoffCount() int {
-	return len(b.Handoffs)
+	n := 0
+	for i := range b.Handoffs {
+		if !b.Handoffs[i].IsDispatched() {
+			n++
+		}
+	}
+	return n
 }
 
 // CriticalPathCount returns the number of roadmap needs explicitly assigned to "owner: me".

@@ -109,9 +109,27 @@ stargazer sync --roadmap custom-roadmap.yaml --wip-limit 4
 # Render a degraded board instead of failing when an input cannot be read
 stargazer sync --keep-going
 
+# Also emit the board as JSON: to stdout, or to a file
+stargazer sync --json
+stargazer sync --json=board.json
+
+# List every Accepted ADR in the hand-off section, dispatched or not
+stargazer sync --all-handoffs
+
 ```
 
 **Paths.** A relative path set in the config file is resolved against the config file's own directory, so the same file behaves the same from any working directory. A path given as a flag (`--roadmap`, `--out`, `--signals`) or an environment variable stays relative to where you run the command.
+
+**JSON.** `--json` prints one JSON document to stdout and nothing else (the terminal board is suppressed); `--json=path` writes it to a file. The markdown board is still written. The document has a `schema` number that changes only on a breaking change, the WIP count, the launch countdown, the active and hand-off ADRs (with `date`, `status_line`, `phase`, `next_action` and whether you wrote it by hand), the roadmap gaps, and `warnings` and `adr_unknown` so a consumer can tell a degraded board from a calm one.
+
+**Dispatch state.** The hand-off section lists Accepted ADRs awaiting stories. To record that an ADR's stories have been handed off, add it to the state file (`state.file`, default `.stargazer-state.yaml`), keyed by its track-qualified id:
+
+```yaml
+dispatched:
+  2-product/0099: PROJ-5301   # a ticket key, or any note such as "done"
+```
+
+A dispatched ADR drops out of the hand-off section on the next sync and stays out; the section says how many were left out. A key with no value still means dispatched. An entry that matches no Accepted ADR (a typo, a bare number, an ADR that is still Proposed) prints a `Notice:` and is ignored. A missing state file at the default path means nothing is dispatched; one you named in the config that is missing, or one that cannot be parsed, fails the sync like any other unreadable input.
 
 **Failures.** If an ADR directory cannot be read, or a roadmap you named explicitly cannot be loaded, `sync` prints what failed, exits non-zero and writes nothing. A missing roadmap at the default path is only a notice. With `--keep-going` it renders the board with a `DEGRADED` banner and exits 0, but if the ADR sources were the problem it still leaves `ARCH_DISPATCH.md` untouched: the hand-written `Next Action` lines in that file exist nowhere else, and a board with no pipeline would erase them.
 

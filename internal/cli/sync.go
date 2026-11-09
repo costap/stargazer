@@ -12,13 +12,17 @@ var (
 	syncRoadmapPath   string
 	syncSignalsSource string
 	syncOutputPath    string
-	syncWIPLimit      int
 	syncDryRun        bool
 	syncAudioQueue    bool
 	syncKeepGoing     bool
+	syncAllHandoffs   bool
+	syncJSON          string
 )
 
 func init() {
+	syncCmd.Flags().BoolVar(&syncAllHandoffs, "all-handoffs", false, "list every Accepted ADR in the hand-off section, including those marked dispatched in the state file")
+	syncCmd.Flags().StringVar(&syncJSON, "json", "", "also emit the board as JSON: to stdout when given without a value (the terminal board is then suppressed), or to the file given as --json=path")
+	syncCmd.Flags().Lookup("json").NoOptDefVal = "-"
 	syncCmd.Flags().BoolVar(&syncKeepGoing, "keep-going", false, "render a degraded board when an input cannot be read, instead of failing")
 }
 
@@ -59,8 +63,10 @@ signals.json (including conference talk queues), and outputs a regenerated ARCH_
 		if syncSignalsSource != "" {
 			cfg.Signals.Source = syncSignalsSource
 		}
-		if cmd.Flags().Changed("wip-limit") {
-			cfg.ADR.WIPLimit = syncWIPLimit
+
+		// JSON on stdout must be the only thing on stdout.
+		if syncJSON == "-" {
+			cfg.Dispatch.Silent = true
 		}
 
 		// 3. Initialize engine via package app
@@ -71,6 +77,8 @@ signals.json (including conference talk queues), and outputs a regenerated ARCH_
 			DryRun:            syncDryRun,
 			IncludeAudioQueue: syncAudioQueue,
 			KeepGoing:         syncKeepGoing,
+			AllHandoffs:       syncAllHandoffs,
+			JSON:              syncJSON,
 		}
 
 		if err := engine.SyncWithOptions(ctx, syncOpts); err != nil {

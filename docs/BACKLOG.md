@@ -18,8 +18,8 @@ Written 2026-11-09 while wiring a daily-summary wrapper script to Stargazer. Eve
 | SG-001 | Failures must be loud | P1 | S | done | | the stderr scraping |
 | SG-002 | Resolve paths against the config file | P1 | S | done | | the generated absolute-path config |
 | SG-003 | A bare ADR ref must not bind ambiguously | P1 | S | done | | nothing, but the board is wrong without it |
-| SG-004 | Machine-readable output (`--json`) | P1 | M | open | | the markdown parser |
-| SG-005 | A dispatched state for Accepted ADRs | P1 | M | open | SG-004 | the 45-day and story-citation filter |
+| SG-004 | Machine-readable output (`--json`) | P1 | M | done | | the markdown parser |
+| SG-005 | A dispatched state for Accepted ADRs | P1 | M | done | | the 45-day and story-citation filter |
 | SG-006 | An unset Next Action is not a default | P2 | S | open | | the default-action list |
 | SG-007 | Parked state for blocked ADRs | P2 | M | open | SG-008 | |
 | SG-008 | One definition of WIP | P2 | S | open | | |
@@ -28,6 +28,7 @@ Written 2026-11-09 while wiring a daily-summary wrapper script to Stargazer. Eve
 | SG-011 | Tests for the parts that decide things | P2 | M | done | | |
 | SG-012 | Launch day count truncates | P3 | S | open | | the one-day disagreement |
 | SG-013 | The ADR parser guesses instead of refusing | P3 | S | open | | |
+| SG-014 | The audio queue is never enabled from the CLI | P2 | S | open | | |
 
 ## Suggested order
 
@@ -116,9 +117,9 @@ Decision to check: these are notices, not warnings, so they do not degrade the b
 
 ## SG-004 Machine-readable output (`--json`)
 
-Pri P1 | Size M | Status open
+Pri P1 | Size M | Status done 2026-11-09
 
-**Problem.** The only outputs are an LCARS terminal board and a markdown file, so every consumer has to scrape markdown. The wrapper does this with regexes keyed on emoji headings, `### [` and `- [ ] **[`. A cosmetic change to a heading breaks it silently.
+**Problem.** The only outputs are an LCARS terminal board and a markdown file, so every consumer has to scrape markdown. The wrapper does this with regexes keyed on emoji headings, `### [` and `- [x] **[`. A cosmetic change to a heading breaks it silently.
 
 **Proposal.** `stargazer sync --json[=path]` writes a versioned document, built from the same `DispatchBoard` the renderers use.
 
@@ -142,16 +143,20 @@ Pri P1 | Size M | Status open
 Include the ADR `date` and the raw status line: the wrapper currently re-reads each ADR file to get both.
 
 **Done when.**
-- [ ] `--json` produces the document above and nothing else on stdout.
-- [ ] `schema` is bumped on any breaking change.
-- [ ] Warnings from SG-001 appear in `warnings` as well as on stderr.
-- [ ] A golden-file test pins the shape.
+- [x] `--json` produces the document above and nothing else on stdout.
+- [x] `schema` is bumped on any breaking change.
+- [x] Warnings from SG-001 appear in `warnings` as well as on stderr.
+- [x] A golden-file test pins the shape.
+
+**Outcome.** `internal/render/json.go` builds the document from the board the renderers use. Decisions: `--json` with no value writes to stdout and suppresses the terminal board; `--json=path` writes a file; the markdown board is rewritten as usual in both cases. A degraded board (`--keep-going`) still emits JSON, carrying `adr_unknown` and `warnings`, so a consumer can tell it from a calm one. List fields are `[]`, never `null`.
+Changes to the proposed shape: `blocker` was dropped (it belongs to SG-007, which is undecided), `status` was added next to `status_line`, `adr_unknown` and `dispatched_hidden` were added, and `next_action_set` is false for the generated default actions even after an earlier sync wrote them into the board, which also settles most of SG-006 for JSON consumers. `launch.days` still has the SG-012 truncation. A golden file (`internal/render/testdata/board.golden.json`) pins the shape.
+Found on the way: `--wip-limit N` set the board's limit to 0. `syncWIPLimit` in `internal/cli/sync.go` was declared but never bound to the flag, and the command copied it over the configured limit whenever the flag was given. Fixed by dropping the override (Viper already binds the flag), with a test that drives the real command line.
 
 ---
 
 ## SG-005 A dispatched state for Accepted ADRs
 
-Pri P1 | Size M | Status open | Needs SG-004
+Pri P1 | Size M | Status done 2026-11-09
 
 **Problem.** The hand-off section lists every Accepted ADR forever. There is no way to say "stories were generated". On 2026-11-09 it held 130 rows against 131 Accepted ADRs on disk, so the section carries no signal. It is meant to answer "what should I turn into stories this afternoon".
 Evidence: **ran** (130 rows counted in the written board). **read**: `buildDispatchBoard` appends every `StatusAccepted` ADR to `Handoffs`.
@@ -165,10 +170,14 @@ Evidence: **ran** (130 rows counted in the written board). **read**: `buildDispa
 My lean is B for the flag and C only as a hint.
 
 **Done when.**
-- [ ] The default board lists only Accepted ADRs not marked dispatched.
-- [ ] `--all-handoffs` shows every one.
-- [ ] Marking one dispatched removes it on the next sync and survives later syncs.
-- [ ] The JSON carries `dispatched`.
+- [x] The default board lists only Accepted ADRs not marked dispatched.
+- [x] `--all-handoffs` shows every one.
+- [x] Marking one dispatched removes it on the next sync and survives later syncs.
+- [x] The JSON carries `dispatched`.
+
+**Outcome.** Option B, chosen 2026-11-09. `state.file` (default `.stargazer-state.yaml`) holds `dispatched: {<qualified id>: <reference>}`. Stargazer only reads it. Keys match the track-qualified id exactly, case-insensitively; a bare number is never accepted, for the SG-003 reason. An entry matching no Accepted ADR prints a `Notice:`. A missing file at the default path is normal; a named one that is missing, or one that does not parse, is a warning like any other unreadable input. Dispatched ADRs are left out of the hand-off section and the board says how many (`dispatched_hidden`); `--all-handoffs` lists them ticked with their reference.
+Not done: there is no `stargazer dispatch <id>` command, so marking an ADR means editing the YAML by hand. And on first use every Accepted ADR is undispatched (131 in the real repo), so a baseline is needed; see the open questions in the hand-over note below.
+A side effect to know: an ADR that drops out of the hand-off section takes its hand-written Next Action with it, because the board is regenerated from what it lists.
 
 ---
 
@@ -307,3 +316,18 @@ Evidence: **read**: `internal/scanner/adr.go` `ParseADRFile` and `ScanADRDir`. *
 - [ ] A `README.md` in an ADR folder is not counted.
 - [ ] A numbered file with no `## Status` is named in a warning and not counted as Proposed.
 - [ ] A file that cannot be read is named in a warning.
+
+---
+
+## SG-014 The audio queue is never enabled from the CLI
+
+Pri P2 | Size S | Status open
+
+**Problem.** Found while fixing the `--wip-limit` bug in SG-004. `syncCmd` passes `IncludeAudioQueue: syncAudioQueue`, a package variable that is never bound to a flag and is always false. Only `Engine.Sync` (which no command calls) sets it to true. So the README's headline "Off-Desk Audio Queue" feature does not run from `stargazer sync`; the extraction code exists and is untested.
+Evidence: **read**: `internal/cli/sync.go`, `internal/app/engine.go`. Not run end to end.
+
+**Proposal.** Decide the default (on, like `Sync`), bind a `--no-audio` flag or a config key, and cover `extractAudioQueue` with tests over a small signals fixture. The same applies to `syncDryRun`, which SG-010 already covers.
+
+**Done when.**
+- [ ] `stargazer sync` with a signals source produces the audio queue section.
+- [ ] A test pins the extraction for one signal and one digest, including de-duplication.

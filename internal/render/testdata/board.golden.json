@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "synced_at": "2026-11-09T11:22:14Z",
+  "adr_unknown": false,
+  "wip": {
+    "limit": 1,
+    "count": 2,
+    "over_by": 1
+  },
+  "launch": null,
+  "active": [
+    {
+      "id": "3-platform/0031",
+      "title": "CI scanning",
+      "file": "0031-ci.md",
+      "date": "2026-10-01",
+      "status": "Proposed",
+      "status_line": "Proposed - pending PoC",
+      "phase": "phase-1",
+      "next_action": "ask the vendor",
+      "next_action_set": true,
+      "dispatched": false,
+      "dispatch_ref": ""
+    },
+    {
+      "id": "3-platform/0040",
+      "title": "Cluster upgrades",
+      "file": "0040-up.md",
+      "date": "",
+      "status": "Proposed",
+      "status_line": "Proposed",
+      "phase": "",
+      "next_action": "Review RFC comments",
+      "next_action_set": false,
+      "dispatched": false,
+      "dispatch_ref": ""
+    }
+  ],
+  "handoffs": [
+    {
+      "id": "2-product/0099",
+      "title": "Order idempotency",
+      "file": "0099-o.md",
+      "date": "2026-10-20",
+      "status": "Accepted",
+      "status_line": "Accepted",
+      "phase": "",
+      "next_action": "",
+      "next_action_set": false,
+      "dispatched": true,
+      "dispatch_ref": "PROJ-5301"
+    },
+    {
+      "id": "2-product/0100",
+      "title": "Cart ownership",
+      "file": "0100-c.md",
+      "date": "2026-10-22",
+      "status": "Accepted",
+      "status_line": "Accepted",
+      "phase": "",
+      "next_action": "",
+      "next_action_set": false,
+      "dispatched": false,
+      "dispatch_ref": ""
+    }
+  ],
+  "dispatched_hidden": 4,
+  "gaps": [
+    {
+      "phase": "phase-1",
+      "kind": "decision",
+      "gist": "Region count",
+      "owner": "product",
+      "blocks": [
+        "PROJ-1"
+      ]
+    }
+  ],
+  "warnings": [
+    "roadmap x: unreadable"
+  ]
+}

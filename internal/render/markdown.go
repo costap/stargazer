@@ -209,11 +209,21 @@ func WriteMarkdownBoard(filePath string, board *domain.DispatchBoard) error {
 			if adr.EpochID != "" {
 				epochBadge = fmt.Sprintf(" `[%s]`", adr.EpochID)
 			}
-			buf.WriteString(fmt.Sprintf("- [ ] **[%s] %s**%s\n", adr.DisplayName(), adr.Title, epochBadge))
+			box := " "
+			if adr.IsDispatched() {
+				box = "x"
+			}
+			buf.WriteString(fmt.Sprintf("- [%s] **[%s] %s**%s\n", box, adr.DisplayName(), adr.Title, epochBadge))
 			buf.WriteString(fmt.Sprintf("  - **File:** `%s`\n", adr.Filename))
+			if adr.IsDispatched() {
+				buf.WriteString(fmt.Sprintf("  - **Dispatched:** %s\n", adr.Dispatched))
+			}
 			buf.WriteString(fmt.Sprintf("  - **Next Action:** %s\n", adr.NextAction))
 		}
 		buf.WriteString("\n")
+	}
+	if board.DispatchedHidden > 0 {
+		buf.WriteString(fmt.Sprintf("_%d dispatched ADRs not listed (`--all-handoffs` shows them)._\n\n", board.DispatchedHidden))
 	}
 
 	buf.WriteString("---\n\n")

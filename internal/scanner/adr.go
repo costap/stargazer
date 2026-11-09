@@ -131,7 +131,9 @@ func ParseADRFile(track, fullPath, filename string) (domain.ADR, error) {
 
 		// Inline Date metadata: "Date: 2026-02-18"
 		if m := dateRegex.FindStringSubmatch(line); len(m) > 1 {
-			// Date captured if needed
+			if item.Date == "" {
+				item.Date = m[1]
+			}
 			continue
 		}
 
@@ -144,6 +146,9 @@ func ParseADRFile(track, fullPath, filename string) (domain.ADR, error) {
 		// Parse Section Body
 		switch currentSection {
 		case "status":
+			if item.StatusLine == "" {
+				item.StatusLine = line
+			}
 			statusLine := strings.ToLower(line)
 			switch {
 			case strings.HasPrefix(statusLine, "accepted"):

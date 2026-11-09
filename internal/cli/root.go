@@ -56,6 +56,7 @@ func initConfig() {
 	// Set Default Values
 	v.SetDefault("roadmap.file", "roadmap.yaml")
 	v.SetDefault("dispatch.output", "ARCH_DISPATCH.md")
+	v.SetDefault("state.file", ".stargazer-state.yaml")
 	v.SetDefault("adr.wip_limit", 3)
 	v.SetDefault("dispatch.silent", false)
 	v.SetDefault("signals.filter_rings", []string{"assess", "trial", "explore"})

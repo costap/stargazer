@@ -280,12 +280,24 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 				blueStyle.Render(adr.DisplayName()),
 				whiteStyle.Render(truncate(adr.Title, 38)),
 			)
+			if adr.IsDispatched() {
+				fmt.Printf("  %s    %s %s\n",
+					amberStyle.Render("│"),
+					dimStyle.Render("DISPATCHED:"),
+					dimStyle.Render(truncate(adr.Dispatched, 48)),
+				)
+				continue
+			}
 			fmt.Printf("  %s    %s %s\n",
 				amberStyle.Render("│"),
 				dimStyle.Render("TASK:"),
 				dimStyle.Render(truncate(adr.NextAction, 52)),
 			)
 		}
+	}
+	if board.DispatchedHidden > 0 {
+		fmt.Printf("  %s  %s\n", amberStyle.Render("│"),
+			dimStyle.Render(fmt.Sprintf("%d dispatched ADRs not listed (--all-handoffs)", board.DispatchedHidden)))
 	}
 	SectionFrameEnd("REL-3109")
 

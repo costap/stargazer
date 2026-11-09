@@ -150,3 +150,41 @@ func TestLoadRoadmapSetInConfigIsExplicit(t *testing.T) {
 		t.Error("a roadmap set in the config file must count as explicit")
 	}
 }
+
+func TestStateFileResolvesAgainstTheConfigDirectoryAndIsExplicit(t *testing.T) {
+	v, dir := newViper(t, "state:\n  file: \"records/state.yaml\"\n")
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(dir, "records/state.yaml"); cfg.State.File != want {
+		t.Errorf("state file = %q, want %q", cfg.State.File, want)
+	}
+	if !cfg.State.Explicit {
+		t.Error("a state file named in the config is explicit: if it is missing that is an error")
+	}
+}
+
+func TestStateFileDefaultIsNotExplicitAndStaysRelative(t *testing.T) {
+	v, _ := newViper(t, "adr:\n  wip_limit: 3\n")
+	v.SetDefault("state.file", ".stargazer-state.yaml")
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.State.File != ".stargazer-state.yaml" || cfg.State.Explicit {
+		t.Errorf("default must stay as is and not be explicit: %+v", cfg.State)
+	}
+}
+
+func TestStateFileFromTheEnvironmentStaysRelativeToTheWorkingDirectory(t *testing.T) {
+	t.Setenv("STARGAZER_STATE_FILE", "mine.yaml")
+	v, _ := newViper(t, "state:\n  file: \"records/state.yaml\"\n")
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.State.File != "mine.yaml" || !cfg.State.Explicit {
+		t.Errorf("env override: %+v", cfg.State)
+	}
+}

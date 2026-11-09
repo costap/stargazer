@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,6 +25,14 @@ type SyncOptions struct {
 	// failing the sync. Without it, any unreadable ADR group or explicitly configured
 	// roadmap is an error and nothing is written.
 	KeepGoing bool
+
+	// AllHandoffs lists every Accepted ADR in the hand-off section, dispatched or not.
+	// By default only ADRs not yet marked dispatched are listed.
+	AllHandoffs bool
+
+	// JSON receives the machine-readable board when non-empty: "-" for the engine's
+	// stdout, otherwise a file path. The markdown board is still written as usual.
+	JSON string
 }
 
 // ErrDegraded is returned when inputs could not be read and KeepGoing is off.
@@ -30,10 +40,13 @@ var ErrDegraded = errors.New("inputs could not be read")
 
 type Engine struct {
 	cfg *config.Config
+
+	// Stdout receives the JSON document for "-". Defaults to os.Stdout.
+	Stdout io.Writer
 }
 
 func NewEngine(cfg *config.Config) *Engine {
-	return &Engine{cfg: cfg}
+	return &Engine{cfg: cfg, Stdout: os.Stdout}
 }
 
 // Sync executes the default sync workflow
@@ -74,6 +87,20 @@ func (e *Engine) SyncWithOptions(ctx context.Context, opts SyncOptions) error {
 		}
 	}
 
+	// 2b. Ingest the dispatch state: which Accepted ADRs already had their stories
+	// handed off. Absent is normal while the path is still the default.
+	var state *domain.DispatchState
+	if e.cfg.State.File != "" {
+		state, err = scanner.LoadDispatchState(e.cfg.State.File)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) && !e.cfg.State.Explicit {
+				state = nil
+			} else {
+				warnings = append(warnings, fmt.Sprintf("state %s: %v", e.cfg.State.File, err))
+			}
+		}
+	}
+
 	if len(warnings) > 0 {
 		for _, w := range warnings {
 			fmt.Fprintf(os.Stderr, "Warning: %s\n", w)
@@ -103,8 +130,13 @@ func (e *Engine) SyncWithOptions(ctx context.Context, opts SyncOptions) error {
 	existingActions := render.ParseExistingDispatch(e.cfg.Dispatch.Output)
 	applyPreservedActions(adrs, existingActions)
 
+	// 5b. Mark Accepted ADRs the state file says are dispatched.
+	for _, n := range applyDispatchState(adrs, state) {
+		fmt.Fprintf(os.Stderr, "Notice: %s\n", n)
+	}
+
 	// 6. Build the Dispatch Board Aggregate
-	board := buildDispatchBoard(roadmap, adrs, signalsPayload, e.cfg.ADR.WIPLimit, opts.IncludeAudioQueue)
+	board := buildDispatchBoard(roadmap, adrs, signalsPayload, e.cfg.ADR.WIPLimit, opts.IncludeAudioQueue, opts.AllHandoffs)
 	board.Warnings = warnings
 	board.ADRUnknown = adrUnknown
 
@@ -119,7 +151,16 @@ func (e *Engine) SyncWithOptions(ctx context.Context, opts SyncOptions) error {
 		fmt.Fprintf(os.Stderr, "Warning: %s was not rewritten, to keep its Next Actions\n", e.cfg.Dispatch.Output)
 	}
 
-	// 8. Output: Render Terminal Summary unless silenced
+	// 8. Output: the machine-readable board, when asked for. It is emitted even for a
+	// degraded board, because a consumer needs the warnings and adr_unknown to know
+	// what it cannot trust.
+	if opts.JSON != "" {
+		if err := e.writeJSON(opts.JSON, board); err != nil {
+			return err
+		}
+	}
+
+	// 9. Output: Render Terminal Summary unless silenced
 	if !e.cfg.Dispatch.Silent {
 		render.PrintTerminalSummary(board, e.cfg.Dispatch.Output, opts.DryRun)
 	}
@@ -167,6 +208,13 @@ func correlateRoadmapWithADRs(roadmap *domain.RoadmapManifest, adrs []domain.ADR
 	return notices
 }
 
+// The generated Next Actions. A board that has been synced once carries them in the
+// file, so reading them back must not count as the architect having written them.
+const (
+	defaultProposedAction = "Review RFC comments; drive consensus with lead engineers"
+	defaultAcceptedAction = "Run story-gen skill; review Gherkin contracts with pod PM"
+)
+
 func applyPreservedActions(adrs []domain.ADR, preserved map[string]string) {
 	for i := range adrs {
 		key := adrs[i].QualifiedID
@@ -176,12 +224,70 @@ func applyPreservedActions(adrs []domain.ADR, preserved map[string]string) {
 			adrs[i].NextAction = rawAction
 		} else {
 			if adrs[i].Status == domain.StatusProposed {
-				adrs[i].NextAction = "Review RFC comments; drive consensus with lead engineers"
+				adrs[i].NextAction = defaultProposedAction
 			} else if adrs[i].Status == domain.StatusAccepted {
-				adrs[i].NextAction = "Run story-gen skill; review Gherkin contracts with pod PM"
+				adrs[i].NextAction = defaultAcceptedAction
 			}
 		}
+		adrs[i].NextActionSet = adrs[i].NextAction != "" &&
+			adrs[i].NextAction != defaultProposedAction &&
+			adrs[i].NextAction != defaultAcceptedAction
 	}
+}
+
+// applyDispatchState marks Accepted ADRs as dispatched from the state file and returns
+// a notice for every entry that matches no Accepted ADR (a typo, a renamed track, or
+// an ADR that is not Accepted yet). A bare number never matches: it can name two ADRs.
+func applyDispatchState(adrs []domain.ADR, state *domain.DispatchState) []string {
+	if state == nil {
+		return nil
+	}
+	used := map[string]bool{}
+	for i := range adrs {
+		if adrs[i].Status != domain.StatusAccepted {
+			continue
+		}
+		ref, ok := state.Lookup(adrs[i].QualifiedID)
+		if !ok {
+			continue
+		}
+		if ref == "" {
+			ref = "yes"
+		}
+		adrs[i].Dispatched = ref
+		used[strings.ToLower(adrs[i].QualifiedID)] = true
+	}
+
+	var notices []string
+	keys := make([]string, 0, len(state.Dispatched))
+	for k := range state.Dispatched {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if !used[strings.ToLower(strings.TrimSpace(k))] {
+			notices = append(notices, fmt.Sprintf("state: %q matches no Accepted ADR (use the track-qualified id, e.g. 2-product/0099)", k))
+		}
+	}
+	return notices
+}
+
+func (e *Engine) writeJSON(dest string, board *domain.DispatchBoard) error {
+	if dest == "-" {
+		if err := render.WriteJSON(e.Stdout, board); err != nil {
+			return fmt.Errorf("failed writing JSON board: %w", err)
+		}
+		return nil
+	}
+	f, err := os.Create(dest)
+	if err != nil {
+		return fmt.Errorf("failed writing JSON board to %s: %w", dest, err)
+	}
+	defer f.Close()
+	if err := render.WriteJSON(f, board); err != nil {
+		return fmt.Errorf("failed writing JSON board to %s: %w", dest, err)
+	}
+	return f.Close()
 }
 
 func buildDispatchBoard(
@@ -190,6 +296,7 @@ func buildDispatchBoard(
 	signalsPayload *domain.SignalsPayload,
 	wipLimit int,
 	includeAudio bool,
+	allHandoffs bool,
 ) *domain.DispatchBoard {
 	board := &domain.DispatchBoard{
 		SyncedAt: time.Now(),
@@ -202,6 +309,10 @@ func buildDispatchBoard(
 		case domain.StatusProposed:
 			board.ActiveADRs = append(board.ActiveADRs, item)
 		case domain.StatusAccepted:
+			if item.IsDispatched() && !allHandoffs {
+				board.DispatchedHidden++
+				continue
+			}
 			board.Handoffs = append(board.Handoffs, item)
 		}
 	}
