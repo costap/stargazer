@@ -152,6 +152,8 @@ fronts:
 
 Fronts have their own limit (`fronts.limit`, default 2) and never count toward the ADR limit, so an initiative cannot hide an ADR you owe, and the reverse. The board shows them in their own section, the JSON under `fronts` and `wip.fronts` / `wip.fronts_limit` / `wip.fronts_over_by`. Stargazer does not infer fronts from PRs or the readiness register: you add and remove them.
 
+**Candidates.** Set `candidates.dir` to a folder of `NNN-*.md` files, each with a `- **Status:** open` line (and optionally `Raised` and `Source`), and the board lists the open ones, oldest first. Promoted and dropped files are ignored; a numbered file with no Status field is named in a warning, not guessed. With the directory unset nothing is read. When the ADR pipeline has no free slot, or is unknown, the section says it is gated and lists the queue without any call to start one; the JSON carries `candidates.open`, `count`, `gated` and `slots`.
+
 **Failures.** If an ADR directory cannot be read, or a roadmap you named explicitly cannot be loaded, `sync` prints what failed, exits non-zero and writes nothing. A missing roadmap at the default path is only a notice. With `--keep-going` it renders the board with a `DEGRADED` banner and exits 0, but if the ADR sources were the problem it still leaves `ARCH_DISPATCH.md` untouched: the hand-written `Next Action` lines in that file exist nowhere else, and a board with no pipeline would erase them.
 
 ---

@@ -61,3 +61,23 @@ func TestFrontsAreOrderedByIDAndLimited(t *testing.T) {
 		t.Error("fronts must not hide an ADR WIP violation")
 	}
 }
+
+func TestCandidatesAreGatedWhenThePipelineIsFullOrUnknown(t *testing.T) {
+	b := &DispatchBoard{WIPLimit: 3, ActiveADRs: make([]ADR, 2)}
+	if b.CandidatesGated() || b.FreeSlots() != 1 {
+		t.Errorf("2 of 3 leaves a free slot: gated=%v slots=%d", b.CandidatesGated(), b.FreeSlots())
+	}
+	b.ActiveADRs = make([]ADR, 3)
+	if !b.CandidatesGated() || b.FreeSlots() != 0 {
+		t.Error("3 of 3 must gate")
+	}
+	b.ActiveADRs = make([]ADR, 5)
+	if !b.CandidatesGated() || b.FreeSlots() != 0 {
+		t.Error("over the limit must gate, and free slots never go negative")
+	}
+	b.ActiveADRs = nil
+	b.ADRUnknown = true
+	if !b.CandidatesGated() {
+		t.Error("unknown WIP is treated as full")
+	}
+}

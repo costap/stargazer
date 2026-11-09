@@ -127,9 +127,9 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 		modeBadge = "DRY-RUN // NO-COMMIT"
 	}
 
-	bannerTitle := "STARGAZER SYSTEM DISPATCH"
+	bannerTitle := fmt.Sprintf("STARGAZER SYSTEM DISPATCH : %s", domain.StardateString(time.Now()))
 	fmt.Printf("\n %s %s %s\n",
-		capRegistry.Render(fmt.Sprintf("NCC-2882 : %s", domain.StardateString(time.Now()))),
+		capRegistry.Render("NCC-2882"),
 		capTitle.Render(fmt.Sprintf("%-42s", bannerTitle)),
 		capRegistry.Render(modeBadge),
 	)
@@ -271,6 +271,19 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 		fmt.Printf("  %s  %s %s\n", amberStyle.Render("│"), dimStyle.Render("PARKED (not WIP):"), dimStyle.Render(truncate(strings.Join(ids, ", "), 44)))
 	}
 	SectionFrameEnd("WIP-8842")
+
+	if c := board.Candidates; c != nil && c.Configured {
+		if board.CandidatesGated() {
+			SectionFrameStart("CND-04", fmt.Sprintf("ADR CANDIDATES // GATED %d WAIT", len(c.Open)))
+			fmt.Printf("  %s  %s\n", amberStyle.Render("│"), dimStyle.Render(fmt.Sprintf("%d of %d slots used. Close or park an ADR first.", len(board.ActiveADRs), board.WIPLimit)))
+		} else {
+			SectionFrameStart("CND-04", fmt.Sprintf("ADR CANDIDATES // %d OPEN, %d FREE", len(c.Open), board.FreeSlots()))
+		}
+		for _, cand := range c.Open {
+			fmt.Printf("  %s  • %-5s %s\n", amberStyle.Render("│"), blueStyle.Render(cand.ID), whiteStyle.Render(truncate(cand.Title, 56)))
+		}
+		SectionFrameEnd("CND-3310")
+	}
 
 	if len(board.Fronts) > 0 {
 		SectionFrameStart("FRT-03", fmt.Sprintf("FRONTS // NON-ADR WORK %d/%d", len(board.Fronts), board.FrontsLimit))

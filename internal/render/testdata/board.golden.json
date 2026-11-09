@@ -103,6 +103,19 @@
       "next": ""
     }
   ],
+  "candidates": {
+    "open": [
+      {
+        "id": "012",
+        "title": "Portal origin",
+        "raised": "2026-10-30",
+        "source": "chat"
+      }
+    ],
+    "count": 1,
+    "gated": true,
+    "slots": 0
+  },
   "gaps": [
     {
       "phase": "phase-1",

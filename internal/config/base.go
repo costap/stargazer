@@ -25,6 +25,11 @@ type Config struct {
 		Limit int `mapstructure:"limit"`
 	} `mapstructure:"fronts"`
 
+	Candidates struct {
+		// Dir holds NNN-*.md ADR candidate files. Unset means candidates are not read.
+		Dir string `mapstructure:"dir"`
+	} `mapstructure:"candidates"`
+
 	Roadmap struct {
 		File string `mapstructure:"file"`
 
@@ -89,6 +94,9 @@ func Load(v *viper.Viper, overridden ...string) (*Config, error) {
 	}
 	if fromConfig("state.file") {
 		cfg.State.File = resolve(configDir, cfg.State.File)
+	}
+	if fromConfig("candidates.dir") {
+		cfg.Candidates.Dir = resolve(configDir, cfg.Candidates.Dir)
 	}
 	if fromConfig("dispatch.output") {
 		cfg.Dispatch.Output = resolve(configDir, cfg.Dispatch.Output)

@@ -23,7 +23,7 @@ Written 2026-11-09 while wiring a daily-summary wrapper script to Stargazer. Eve
 | SG-006 | An unset Next Action is not a default | P2 | S | open | | the default-action list |
 | SG-007 | Parked state for blocked ADRs | P2 | M | done | | |
 | SG-008 | One definition of WIP | P2 | S | done | | |
-| SG-009 | Read the ADR candidate backlog | P2 | M | open | SG-008 | the candidates collector |
+| SG-009 | Read the ADR candidate backlog | P2 | M | done | | the candidates collector |
 | SG-010 | README and config drift | P3 | S | open | | |
 | SG-011 | Tests for the parts that decide things | P2 | M | done | | |
 | SG-012 | Launch day count truncates | P3 | S | open | | the one-day disagreement |
@@ -36,7 +36,7 @@ Written 2026-11-09 while wiring a daily-summary wrapper script to Stargazer. Eve
 1. SG-001 and SG-002 first. Together they remove the failure I hit by running from the wrong directory, and both are small.
 2. SG-011 alongside SG-003. Write the matcher tests first; SG-003 is then a failing test turned green.
 3. SG-004, then SG-005. The JSON schema should carry the dispatched state, so decide SG-005's storage question before freezing the schema.
-4. SG-008 and SG-007 are done; SG-009 remains. They are all the same question: what counts as work in flight. Decide once.
+4. SG-008, SG-007 and SG-009 are done. They are all the same question: what counts as work in flight. Decide once.
 5. SG-006, SG-010, SG-012 whenever there is a spare half hour.
 
 ---
@@ -236,7 +236,9 @@ Pri P2 | Size S | Status done 2026-11-09
 
 ## SG-009 Read the ADR candidate backlog
 
-Pri P2 | Size M | Status open | Needs SG-008
+Pri P2 | Size M | Status done 2026-11-09
+
+**Outcome.** `candidates.dir` (optional, resolved against the config file). `ScanCandidates` returns the open files oldest first, ignores `README.md` and non-numbered files, and names a numbered file with no Status field in a warning. The board and JSON carry the queue and a gate (`CandidatesGated`: no free slot, or unknown WIP). The gated section lists titles with no call to action. The `/captains-log` collector still reads the candidates folder itself; switching it to the JSON `candidates` is part of the wider move onto `--json`.
 
 **Problem.** `AGENTS.md` invariant 4 says any workflow that suggests new ADR candidates must warn when WIP is saturated, but Stargazer never sees candidates. The queue that the WIP limit exists to gate lives elsewhere, so the gating is done by hand or by the wrapper. A decision you do not draft yet and the ADR you are working on are the same pipeline.
 

@@ -101,6 +101,17 @@ func (e *Engine) SyncWithOptions(ctx context.Context, opts SyncOptions) error {
 		}
 	}
 
+	// 2c. Ingest the ADR candidate queue. Unset means not read; a set directory that
+	// cannot be read is a warning like any other input.
+	var candidates *domain.Candidates
+	if e.cfg.Candidates.Dir != "" {
+		open, err := scanner.ScanCandidates(e.cfg.Candidates.Dir)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("candidates %s: %v", e.cfg.Candidates.Dir, err))
+		}
+		candidates = &domain.Candidates{Configured: true, Open: open}
+	}
+
 	if len(warnings) > 0 {
 		for _, w := range warnings {
 			fmt.Fprintf(os.Stderr, "Warning: %s\n", w)
@@ -139,6 +150,7 @@ func (e *Engine) SyncWithOptions(ctx context.Context, opts SyncOptions) error {
 	board := buildDispatchBoard(roadmap, adrs, signalsPayload, e.cfg.ADR.WIPLimit, opts.IncludeAudioQueue, opts.AllHandoffs)
 	board.Warnings = warnings
 	board.ADRUnknown = adrUnknown
+	board.Candidates = candidates
 	board.Fronts, board.FrontsLimit = state.OrderedFronts(), e.cfg.Fronts.Limit
 	for _, f := range board.Fronts {
 		if strings.TrimSpace(f.Title) == "" {

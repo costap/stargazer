@@ -201,6 +201,25 @@ func WriteMarkdownBoard(filePath string, board *domain.DispatchBoard) error {
 		}
 	}
 
+	if c := board.Candidates; c != nil && c.Configured {
+		if len(c.Open) == 0 {
+			buf.WriteString("## 🧪 ADR Candidates\n\n_None open._\n\n")
+		} else if board.CandidatesGated() {
+			buf.WriteString(fmt.Sprintf("## 🧪 ADR Candidates (%d wait, GATED: %d of %d slots used)\n\n", len(c.Open), len(board.ActiveADRs), board.WIPLimit))
+			buf.WriteString("_Close or park a Proposed ADR before drafting any of these._\n\n")
+			for _, cand := range c.Open {
+				buf.WriteString(fmt.Sprintf("- %s %s\n", cand.ID, cand.Title))
+			}
+			buf.WriteString("\n")
+		} else {
+			buf.WriteString(fmt.Sprintf("## 🧪 ADR Candidates (%d open, %d free slot(s))\n\n", len(c.Open), board.FreeSlots()))
+			for _, cand := range c.Open {
+				buf.WriteString(fmt.Sprintf("- %s %s\n", cand.ID, cand.Title))
+			}
+			buf.WriteString("\n")
+		}
+	}
+
 	if len(board.Fronts) > 0 {
 		over := ""
 		if board.FrontsOver() {

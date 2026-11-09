@@ -33,6 +33,7 @@ func sampleBoard() *domain.DispatchBoard {
 			{QualifiedID: "3-platform/0040", Title: "Cluster upgrades", Filename: "0040-up.md",
 				Status: domain.StatusProposed, StatusLine: "Proposed", NextAction: "Review RFC comments"},
 		},
+		Candidates:  &domain.Candidates{Configured: true, Open: []domain.Candidate{{ID: "012", Title: "Portal origin", Raised: "2026-10-30", Source: "chat"}}},
 		Fronts:      []domain.Front{{ID: "ops-go-live", Title: "Go-live prep", Next: "close R21 items", Ref: "R21"}, {ID: "provisioning", Title: "Provisioning", Next: "settle risk delegation"}, {ID: "third", Title: "One too many"}},
 		FrontsLimit: 2,
 		ParkedADRs: []domain.ADR{

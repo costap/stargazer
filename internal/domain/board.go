@@ -43,6 +43,9 @@ type DispatchBoard struct {
 	Fronts      []Front `json:"fronts,omitempty"`
 	FrontsLimit int     `json:"fronts_limit"`
 
+	// Candidates is the open ADR candidate queue, oldest first (nil if not configured).
+	Candidates *Candidates `json:"candidates,omitempty"`
+
 	// DispatchedHidden counts Accepted ADRs left out of Handoffs because they are
 	// marked dispatched. Zero when every Accepted ADR is listed.
 	DispatchedHidden int `json:"dispatched_hidden,omitempty"`
@@ -109,6 +112,20 @@ func (b *DispatchBoard) Degraded() bool {
 // A limit of zero or less means fronts are not limited.
 func (b *DispatchBoard) FrontsOver() bool {
 	return b.FrontsLimit > 0 && len(b.Fronts) > b.FrontsLimit
+}
+
+// FreeSlots is how many more Proposed ADRs fit under the WIP limit, never negative.
+func (b *DispatchBoard) FreeSlots() int {
+	if n := b.WIPLimit - len(b.ActiveADRs); n > 0 {
+		return n
+	}
+	return 0
+}
+
+// CandidatesGated reports whether open candidates must wait: the pipeline has no
+// free slot, or its state is unknown. A gated queue is never offered as work.
+func (b *DispatchBoard) CandidatesGated() bool {
+	return b.ADRUnknown || b.FreeSlots() == 0
 }
 
 // HasWIPViolation returns true if active proposed ADRs exceed the configured WIP limit.

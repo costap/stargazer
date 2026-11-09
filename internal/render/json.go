@@ -26,6 +26,7 @@ type Document struct {
 	DispatchedHidden int            `json:"dispatched_hidden"`
 	Parked           []DocADR       `json:"parked"`
 	Fronts           []domain.Front `json:"fronts"`
+	Candidates       *DocCandidates `json:"candidates,omitempty"`
 	Gaps             []DocGap       `json:"gaps"`
 	Warnings         []string       `json:"warnings"`
 }
@@ -40,6 +41,15 @@ type DocWIP struct {
 	Fronts      int `json:"fronts"`
 	FrontsLimit int `json:"fronts_limit"`
 	FrontsOver  int `json:"fronts_over_by"`
+}
+
+// DocCandidates is the ADR candidate queue and its gate. Gated means the pipeline has
+// no free slot (or is unknown), so the queue waits and must not be offered as work.
+type DocCandidates struct {
+	Open  []domain.Candidate `json:"open"`
+	Count int                `json:"count"`
+	Gated bool               `json:"gated"`
+	Slots int                `json:"slots"`
 }
 
 type DocLaunch struct {
@@ -93,6 +103,13 @@ func BuildDocument(board *domain.DispatchBoard) Document {
 		doc.WIP.FrontsOver = len(board.Fronts) - board.FrontsLimit
 	}
 	doc.Fronts = append(doc.Fronts, board.Fronts...)
+	if c := board.Candidates; c != nil && c.Configured {
+		open := c.Open
+		if open == nil {
+			open = []domain.Candidate{}
+		}
+		doc.Candidates = &DocCandidates{Open: open, Count: len(open), Gated: board.CandidatesGated(), Slots: board.FreeSlots()}
+	}
 	if count > board.WIPLimit {
 		doc.WIP.OverBy = count - board.WIPLimit
 	}
