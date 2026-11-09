@@ -131,6 +131,27 @@ dispatched:
 
 A dispatched ADR drops out of the hand-off section on the next sync and stays out; the section says how many were left out. A key with no value still means dispatched. An entry that matches no Accepted ADR (a typo, a bare number, an ADR that is still Proposed) prints a `Notice:` and is ignored. A missing state file at the default path means nothing is dispatched; one you named in the config that is missing, or one that cannot be parsed, fails the sync like any other unreadable input.
 
+**What counts as WIP.** Work in progress is the Proposed ADRs that are not parked, and nothing else. To set a Proposed ADR aside, park it in the same state file with a reason:
+
+```yaml
+parked:
+  2-product/0016: waiting on the load-test PoC
+```
+
+A parked ADR stays on the board in its own section (with its hand-written Next Action) but costs no slot; the JSON reports it under `parked` and in `wip.parked`. Parking is always your decision: Stargazer does not infer it from words after `Proposed` in the Status line. An entry that matches no Proposed ADR (a typo, a bare number, an Accepted ADR) prints a `Notice:`. Remove the line to unpark.
+
+**Fronts (work with no ADR).** Go-live preparation or an initiative like operator provisioning never produces an ADR but still takes the deep block. Record it as a front in the state file:
+
+```yaml
+fronts:
+  provisioning:
+    title: Operator and brand provisioning
+    next: settle whether the launch brand delegates risk
+    ref: PR 49            # optional: a PR, epic or register area
+```
+
+Fronts have their own limit (`fronts.limit`, default 2) and never count toward the ADR limit, so an initiative cannot hide an ADR you owe, and the reverse. The board shows them in their own section, the JSON under `fronts` and `wip.fronts` / `wip.fronts_limit` / `wip.fronts_over_by`. Stargazer does not infer fronts from PRs or the readiness register: you add and remove them.
+
 **Failures.** If an ADR directory cannot be read, or a roadmap you named explicitly cannot be loaded, `sync` prints what failed, exits non-zero and writes nothing. A missing roadmap at the default path is only a notice. With `--keep-going` it renders the board with a `DEGRADED` banner and exits 0, but if the ADR sources were the problem it still leaves `ARCH_DISPATCH.md` untouched: the hand-written `Next Action` lines in that file exist nowhere else, and a board with no pipeline would erase them.
 
 ---

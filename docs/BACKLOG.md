@@ -21,21 +21,22 @@ Written 2026-11-09 while wiring a daily-summary wrapper script to Stargazer. Eve
 | SG-004 | Machine-readable output (`--json`) | P1 | M | done | | the markdown parser |
 | SG-005 | A dispatched state for Accepted ADRs | P1 | M | done | | the 45-day and story-citation filter |
 | SG-006 | An unset Next Action is not a default | P2 | S | open | | the default-action list |
-| SG-007 | Parked state for blocked ADRs | P2 | M | open | SG-008 | |
-| SG-008 | One definition of WIP | P2 | S | open | | |
+| SG-007 | Parked state for blocked ADRs | P2 | M | done | | |
+| SG-008 | One definition of WIP | P2 | S | done | | |
 | SG-009 | Read the ADR candidate backlog | P2 | M | open | SG-008 | the candidates collector |
 | SG-010 | README and config drift | P3 | S | open | | |
 | SG-011 | Tests for the parts that decide things | P2 | M | done | | |
 | SG-012 | Launch day count truncates | P3 | S | open | | the one-day disagreement |
 | SG-013 | The ADR parser guesses instead of refusing | P3 | S | open | | |
 | SG-014 | The audio queue is never enabled from the CLI | P2 | S | open | | |
+| SG-015 | Fronts: non-ADR work with its own limit | P2 | M | done | | |
 
 ## Suggested order
 
 1. SG-001 and SG-002 first. Together they remove the failure I hit by running from the wrong directory, and both are small.
 2. SG-011 alongside SG-003. Write the matcher tests first; SG-003 is then a failing test turned green.
 3. SG-004, then SG-005. The JSON schema should carry the dispatched state, so decide SG-005's storage question before freezing the schema.
-4. SG-008, then SG-007 and SG-009. They are all the same question: what counts as work in flight. Decide once.
+4. SG-008 and SG-007 are done; SG-009 remains. They are all the same question: what counts as work in flight. Decide once.
 5. SG-006, SG-010, SG-012 whenever there is a spare half hour.
 
 ---
@@ -200,7 +201,9 @@ Evidence: **read**: `applyPreservedActions` in `internal/app/engine.go` and `Par
 
 ## SG-007 Parked state for blocked ADRs
 
-Pri P2 | Size M | Status open | Needs SG-008
+Pri P2 | Size M | Status done 2026-11-09
+
+**Outcome.** Parking is explicit, not inferred: a `parked:` map in the state file (`id: reason`), Proposed ADRs only. Inferring it from the Status suffix was dropped, because a suffix says nothing about whether the ADR still costs attention (the open question below), and that is the owner's call. Parked ADRs have their own section, keep their hand-written Next Action, and are excluded from WIP; the JSON carries `parked` and `wip.parked`. No `adr.park_blocked` setting was needed.
 
 **Problem.** Every Proposed ADR counts toward WIP, including ones that cannot move. Product ADR-0016 has been waiting on a proof of concept for months and takes a slot permanently, so the limit of three is breached by something you cannot act on. The ADR already says so in its Status line: `Proposed - pending PoC execution and load-test validation`.
 
@@ -217,7 +220,9 @@ Pri P2 | Size M | Status open | Needs SG-008
 
 ## SG-008 One definition of WIP
 
-Pri P2 | Size S | Status open
+Pri P2 | Size S | Status done 2026-11-09
+
+**Outcome.** Decided: WIP is the Proposed ADRs that are not parked, and nothing else (not `owner: me` needs, no second limit). The sentence is in `AGENTS.md`, the README and `DispatchBoard`, and the capacity footer says how many are parked.
 
 **Problem.** The docs disagree. `AGENTS.md` section 1.4 says the active pipeline is `Status: Proposed` with a limit of 3. Section 3A says "Only [`owner: me` needs] count toward active cognitive WIP". The code counts Proposed ADRs only (`buildDispatchBoard`), and the capacity message says "6 active fronts".
 
@@ -331,3 +336,13 @@ Evidence: **read**: `internal/cli/sync.go`, `internal/app/engine.go`. Not run en
 **Done when.**
 - [ ] `stargazer sync` with a signals source produces the audio queue section.
 - [ ] A test pins the extraction for one signal and one digest, including de-duplication.
+
+---
+
+## SG-015 Fronts: non-ADR work with its own limit
+
+Pri P2 | Size M | Status done 2026-11-09
+
+**Problem.** SG-008 defined WIP as Proposed ADRs only, so work that needs no ADR (operator and brand provisioning, ops go-live preparation) took deep blocks and cost nothing on the board.
+
+**Outcome.** A `fronts:` map in the state file (`id: {title, next, ref}`), a separate limit (`fronts.limit`, default 2), its own board section, `fronts` and `wip.fronts*` in the JSON. Two limits, never summed: this is SG-008's third option, taken after the first two left real work invisible. Fronts are hand-maintained; nothing is inferred from PRs or the readiness register.

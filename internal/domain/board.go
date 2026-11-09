@@ -35,11 +35,16 @@ type DispatchBoard struct {
 	// Handoffs contains all scanned ADRs in "Accepted" state awaiting ticket slicing.
 	Handoffs []ADR `json:"handoffs"`
 
-	// DispatchedHidden counts Accepted ADRs left out of Handoffs because they are
-	// marked dispatched. Zero when every Accepted ADR is listed.
 	// ParkedADRs are Proposed ADRs set aside in the state file. They are not WIP.
 	ParkedADRs []ADR `json:"parked_adrs,omitempty"`
 
+	// Fronts are non-ADR pieces of work in flight (state file), counted against
+	// FrontsLimit and not against WIPLimit.
+	Fronts      []Front `json:"fronts,omitempty"`
+	FrontsLimit int     `json:"fronts_limit"`
+
+	// DispatchedHidden counts Accepted ADRs left out of Handoffs because they are
+	// marked dispatched. Zero when every Accepted ADR is listed.
 	DispatchedHidden int `json:"dispatched_hidden,omitempty"`
 
 	// Signals contains candidate technologies from V'Ger / Astrometrics (e.g. status: spotted).
@@ -97,12 +102,21 @@ func (b *DispatchBoard) Degraded() bool {
 	return len(b.Warnings) > 0
 }
 
+// WIP is defined once, here: Work in progress is the Proposed ADRs that are not parked. A parked ADR (state file) is still listed but
+// costs no slot. Accepted ADRs, candidates and roadmap needs are not WIP.
+
+// FrontsOver reports whether more non-ADR fronts are in flight than the fronts limit.
+// A limit of zero or less means fronts are not limited.
+func (b *DispatchBoard) FrontsOver() bool {
+	return b.FrontsLimit > 0 && len(b.Fronts) > b.FrontsLimit
+}
+
 // HasWIPViolation returns true if active proposed ADRs exceed the configured WIP limit.
 func (b *DispatchBoard) HasWIPViolation() bool {
 	return len(b.ActiveADRs) > b.WIPLimit
 }
 
-// ActiveWIPCount returns the number of active proposed ADRs in flight.
+// ActiveWIPCount returns the WIP: Proposed ADRs that are not parked.
 func (b *DispatchBoard) ActiveWIPCount() int {
 	return len(b.ActiveADRs)
 }

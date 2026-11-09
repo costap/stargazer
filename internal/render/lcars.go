@@ -263,7 +263,26 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 			)
 		}
 	}
+	if len(board.ParkedADRs) > 0 {
+		ids := make([]string, 0, len(board.ParkedADRs))
+		for _, p := range board.ParkedADRs {
+			ids = append(ids, p.RawID)
+		}
+		fmt.Printf("  %s  %s %s\n", amberStyle.Render("│"), dimStyle.Render("PARKED (not WIP):"), dimStyle.Render(truncate(strings.Join(ids, ", "), 44)))
+	}
 	SectionFrameEnd("WIP-8842")
+
+	if len(board.Fronts) > 0 {
+		SectionFrameStart("FRT-03", fmt.Sprintf("FRONTS // NON-ADR WORK %d/%d", len(board.Fronts), board.FrontsLimit))
+		for _, f := range board.Fronts {
+			fmt.Printf("  %s  • %-16s %s\n", amberStyle.Render("│"), blueStyle.Render(f.ID), whiteStyle.Render(truncate(f.Title, 40)))
+			fmt.Printf("  %s    %s %s\n", amberStyle.Render("│"), amberStyle.Render("NEXT:"), dimStyle.Render(truncate(f.Next, 52)))
+		}
+		if board.FrontsOver() {
+			fmt.Printf("  %s  %s\n", amberStyle.Render("│"), redStyle.Render(fmt.Sprintf("OVER LIMIT: %d fronts against a limit of %d", len(board.Fronts), board.FrontsLimit)))
+		}
+		SectionFrameEnd("FRT-7710")
+	}
 
 	// 4. Ready for Pod Hand-off: Accepted ADRs
 	SectionFrameStart("HND-02", "READY FOR SQUAD HAND-OFF // ACCEPTED ADRS")
@@ -336,6 +355,9 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 	// 6. Tactical Telemetry & WIP Status Footer
 	fmt.Printf("\n %s\n", amberStyle.Render(strings.Repeat("━", 67)))
 	wipStatus := fmt.Sprintf("%d/%d SLOTS ENGAGED", len(board.ActiveADRs), board.WIPLimit)
+	if n := len(board.ParkedADRs); n > 0 {
+		wipStatus += fmt.Sprintf(" (%d parked)", n)
+	}
 
 	if board.ADRUnknown {
 		fmt.Printf(" %s  %s\n",

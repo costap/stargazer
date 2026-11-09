@@ -168,7 +168,7 @@ func WriteMarkdownBoard(filePath string, board *domain.DispatchBoard) error {
 	// 2. Active Pipeline: Proposed ADRs (WIP limit enforcement)
 	wipWarn := ""
 	if board.HasWIPViolation() {
-		wipWarn = fmt.Sprintf(" ⚠️ **WIP VIOLATION (%d active > limit %d)**", len(board.ActiveADRs), board.WIPLimit)
+		wipWarn = fmt.Sprintf(" ⚠️ **WIP VIOLATION (%d active, parked excluded, > limit %d)**", len(board.ActiveADRs), board.WIPLimit)
 	}
 	buf.WriteString(fmt.Sprintf("## 🚀 Active Pipeline (Proposed / Under Review)%s\n", wipWarn))
 	buf.WriteString("*RFCs requiring decisions, benchmarks, or lead sign-off.*\n\n")
@@ -198,6 +198,21 @@ func WriteMarkdownBoard(filePath string, board *domain.DispatchBoard) error {
 			buf.WriteString(fmt.Sprintf("- **Track:** `%s` | **File:** `%s` *(Updated: %s)*\n", adr.Track, adr.Filename, adr.LastCommit))
 			buf.WriteString(fmt.Sprintf("- **Parked:** %s\n", adr.Parked))
 			buf.WriteString(fmt.Sprintf("- **Next Action:** %s\n\n", adr.NextAction))
+		}
+	}
+
+	if len(board.Fronts) > 0 {
+		over := ""
+		if board.FrontsOver() {
+			over = " ⚠️ **OVER LIMIT**"
+		}
+		buf.WriteString(fmt.Sprintf("## 🧭 Fronts (non-ADR work: %d of %d)%s\n\n", len(board.Fronts), board.FrontsLimit, over))
+		for _, f := range board.Fronts {
+			buf.WriteString(fmt.Sprintf("### [%s] %s\n", f.ID, f.Title))
+			if f.Ref != "" {
+				buf.WriteString(fmt.Sprintf("- **Ref:** %s\n", f.Ref))
+			}
+			buf.WriteString(fmt.Sprintf("- **Next Action:** %s\n\n", f.Next))
 		}
 	}
 

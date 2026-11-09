@@ -20,6 +20,11 @@ type Config struct {
 		Groups   []ADRGroupConfig `mapstructure:"groups"`
 	} `mapstructure:"adr"`
 
+	Fronts struct {
+		// Limit caps the non-ADR fronts in flight (state file). Zero means no limit.
+		Limit int `mapstructure:"limit"`
+	} `mapstructure:"fronts"`
+
 	Roadmap struct {
 		File string `mapstructure:"file"`
 

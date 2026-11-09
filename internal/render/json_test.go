@@ -33,6 +33,12 @@ func sampleBoard() *domain.DispatchBoard {
 			{QualifiedID: "3-platform/0040", Title: "Cluster upgrades", Filename: "0040-up.md",
 				Status: domain.StatusProposed, StatusLine: "Proposed", NextAction: "Review RFC comments"},
 		},
+		Fronts:      []domain.Front{{ID: "ops-go-live", Title: "Go-live prep", Next: "close R21 items", Ref: "R21"}, {ID: "provisioning", Title: "Provisioning", Next: "settle risk delegation"}, {ID: "third", Title: "One too many"}},
+		FrontsLimit: 2,
+		ParkedADRs: []domain.ADR{
+			{QualifiedID: "2-product/0016", Title: "Write scaling", Filename: "0016-w.md", Date: "2026-03-18",
+				Status: domain.StatusProposed, StatusLine: "Proposed - pending PoC", Parked: "waiting on PoC"},
+		},
 		Handoffs: []domain.ADR{
 			{QualifiedID: "2-product/0099", Title: "Order idempotency", Filename: "0099-o.md", Date: "2026-10-20",
 				Status: domain.StatusAccepted, StatusLine: "Accepted", Dispatched: "PROJ-5301"},

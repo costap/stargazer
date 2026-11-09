@@ -139,6 +139,12 @@ func (e *Engine) SyncWithOptions(ctx context.Context, opts SyncOptions) error {
 	board := buildDispatchBoard(roadmap, adrs, signalsPayload, e.cfg.ADR.WIPLimit, opts.IncludeAudioQueue, opts.AllHandoffs)
 	board.Warnings = warnings
 	board.ADRUnknown = adrUnknown
+	board.Fronts, board.FrontsLimit = state.OrderedFronts(), e.cfg.Fronts.Limit
+	for _, f := range board.Fronts {
+		if strings.TrimSpace(f.Title) == "" {
+			fmt.Fprintf(os.Stderr, "Notice: state: front %q has no title\n", f.ID)
+		}
+	}
 
 	// 7. Output: Write Markdown unless DryRun is active. When the ADRs were not read,
 	// the existing file is left alone: its Next Action notes are the only copy of

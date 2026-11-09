@@ -5,7 +5,11 @@
   "wip": {
     "limit": 1,
     "count": 2,
-    "over_by": 1
+    "over_by": 1,
+    "parked": 1,
+    "fronts": 3,
+    "fronts_limit": 2,
+    "fronts_over_by": 1
   },
   "launch": null,
   "active": [
@@ -65,7 +69,40 @@
     }
   ],
   "dispatched_hidden": 4,
-  "parked": null,
+  "parked": [
+    {
+      "id": "2-product/0016",
+      "title": "Write scaling",
+      "file": "0016-w.md",
+      "date": "2026-03-18",
+      "status": "Proposed",
+      "status_line": "Proposed - pending PoC",
+      "phase": "",
+      "next_action": "",
+      "next_action_set": false,
+      "dispatched": false,
+      "dispatch_ref": "",
+      "parked_reason": "waiting on PoC"
+    }
+  ],
+  "fronts": [
+    {
+      "id": "ops-go-live",
+      "title": "Go-live prep",
+      "next": "close R21 items",
+      "ref": "R21"
+    },
+    {
+      "id": "provisioning",
+      "title": "Provisioning",
+      "next": "settle risk delegation"
+    },
+    {
+      "id": "third",
+      "title": "One too many",
+      "next": ""
+    }
+  ],
   "gaps": [
     {
       "phase": "phase-1",

@@ -58,6 +58,7 @@ func initConfig() {
 	v.SetDefault("dispatch.output", "ARCH_DISPATCH.md")
 	v.SetDefault("state.file", ".stargazer-state.yaml")
 	v.SetDefault("adr.wip_limit", 3)
+	v.SetDefault("fronts.limit", 2)
 	v.SetDefault("dispatch.silent", false)
 	v.SetDefault("signals.filter_rings", []string{"assess", "trial", "explore"})
 	v.SetDefault("signals.filter_tags", []string{"poc", "explore"})

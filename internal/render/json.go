@@ -16,23 +16,30 @@ const JSONSchemaVersion = 1
 // Document is the machine-readable form of a DispatchBoard. Consumers read this
 // instead of scraping ARCH_DISPATCH.md.
 type Document struct {
-	Schema           int        `json:"schema"`
-	SyncedAt         string     `json:"synced_at"`
-	ADRUnknown       bool       `json:"adr_unknown"`
-	WIP              DocWIP     `json:"wip"`
-	Launch           *DocLaunch `json:"launch"`
-	Active           []DocADR   `json:"active"`
-	Handoffs         []DocADR   `json:"handoffs"`
-	DispatchedHidden int        `json:"dispatched_hidden"`
-	Parked           []DocADR   `json:"parked"`
-	Gaps             []DocGap   `json:"gaps"`
-	Warnings         []string   `json:"warnings"`
+	Schema           int            `json:"schema"`
+	SyncedAt         string         `json:"synced_at"`
+	ADRUnknown       bool           `json:"adr_unknown"`
+	WIP              DocWIP         `json:"wip"`
+	Launch           *DocLaunch     `json:"launch"`
+	Active           []DocADR       `json:"active"`
+	Handoffs         []DocADR       `json:"handoffs"`
+	DispatchedHidden int            `json:"dispatched_hidden"`
+	Parked           []DocADR       `json:"parked"`
+	Fronts           []domain.Front `json:"fronts"`
+	Gaps             []DocGap       `json:"gaps"`
+	Warnings         []string       `json:"warnings"`
 }
 
 type DocWIP struct {
 	Limit  int `json:"limit"`
 	Count  int `json:"count"`
 	OverBy int `json:"over_by"`
+	// Parked counts Proposed ADRs set aside in the state file; they are not in Count.
+	Parked int `json:"parked"`
+	// Fronts counts non-ADR fronts in flight, against FrontsLimit; separate from Count.
+	Fronts      int `json:"fronts"`
+	FrontsLimit int `json:"fronts_limit"`
+	FrontsOver  int `json:"fronts_over_by"`
 }
 
 type DocLaunch struct {
@@ -73,13 +80,19 @@ func BuildDocument(board *domain.DispatchBoard) Document {
 		ADRUnknown:       board.ADRUnknown,
 		Active:           []DocADR{},
 		Handoffs:         []DocADR{},
+		Parked:           []DocADR{},
+		Fronts:           []domain.Front{},
 		DispatchedHidden: board.DispatchedHidden,
 		Gaps:             []DocGap{},
 		Warnings:         []string{},
 	}
 
 	count := board.ActiveWIPCount()
-	doc.WIP = DocWIP{Limit: board.WIPLimit, Count: count}
+	doc.WIP = DocWIP{Limit: board.WIPLimit, Count: count, Parked: len(board.ParkedADRs), Fronts: len(board.Fronts), FrontsLimit: board.FrontsLimit}
+	if board.FrontsOver() {
+		doc.WIP.FrontsOver = len(board.Fronts) - board.FrontsLimit
+	}
+	doc.Fronts = append(doc.Fronts, board.Fronts...)
 	if count > board.WIPLimit {
 		doc.WIP.OverBy = count - board.WIPLimit
 	}

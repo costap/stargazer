@@ -27,3 +27,37 @@ func TestDispatchStateLookup(t *testing.T) {
 		t.Error("a nil state has nothing dispatched")
 	}
 }
+
+func TestFrontsAreOrderedByIDAndLimited(t *testing.T) {
+	st := &DispatchState{Fronts: map[string]Front{
+		"b-front": {Title: "B", Next: "do b"},
+		"a-front": {Title: "A", Next: "do a", Ref: "PR 1"},
+	}}
+	got := st.OrderedFronts()
+	if len(got) != 2 || got[0].ID != "a-front" || got[1].ID != "b-front" || got[0].Ref != "PR 1" {
+		t.Errorf("fronts not ordered or ids not filled: %+v", got)
+	}
+	var none *DispatchState
+	if none.OrderedFronts() != nil {
+		t.Error("a missing state has no fronts")
+	}
+
+	b := &DispatchBoard{Fronts: got, FrontsLimit: 2}
+	if b.FrontsOver() {
+		t.Error("two fronts against a limit of two is not over")
+	}
+	b.Fronts = append(b.Fronts, Front{ID: "c"})
+	if !b.FrontsOver() {
+		t.Error("three fronts against a limit of two is over")
+	}
+	b.FrontsLimit = 0
+	if b.FrontsOver() {
+		t.Error("a limit of zero means unlimited")
+	}
+	b.FrontsLimit = 2
+	b.ActiveADRs = make([]ADR, 4)
+	b.WIPLimit = 3
+	if !b.HasWIPViolation() {
+		t.Error("fronts must not hide an ADR WIP violation")
+	}
+}

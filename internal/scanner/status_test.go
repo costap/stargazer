@@ -104,3 +104,19 @@ func TestDateAndStatusLineAreCaptured(t *testing.T) {
 		t.Errorf("an ADR without a date has none, got %q", b.Date)
 	}
 }
+
+func TestLoadDispatchStateReadsFronts(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "s.yaml")
+	y := "fronts:\n  provisioning:\n    title: Provisioning\n    next: settle risk delegation\n    ref: PR 49\n"
+	if err := os.WriteFile(p, []byte(y), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := LoadDispatchState(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := st.OrderedFronts()
+	if len(f) != 1 || f[0].ID != "provisioning" || f[0].Next != "settle risk delegation" || f[0].Ref != "PR 49" {
+		t.Errorf("fronts: %+v", f)
+	}
+}
