@@ -243,6 +243,30 @@ func applyDispatchState(adrs []domain.ADR, state *domain.DispatchState) []string
 		return nil
 	}
 	used := map[string]bool{}
+	var notices []string
+	parkedUsed := map[string]bool{}
+	for i := range adrs {
+		if adrs[i].Status != domain.StatusProposed {
+			continue
+		}
+		if why, ok := state.LookupParked(adrs[i].QualifiedID); ok {
+			if why == "" {
+				why = "parked"
+			}
+			adrs[i].Parked = why
+			parkedUsed[strings.ToLower(adrs[i].QualifiedID)] = true
+		}
+	}
+	pk := make([]string, 0, len(state.Parked))
+	for k := range state.Parked {
+		pk = append(pk, k)
+	}
+	sort.Strings(pk)
+	for _, k := range pk {
+		if !parkedUsed[strings.ToLower(strings.TrimSpace(k))] {
+			notices = append(notices, fmt.Sprintf("state: parked %q matches no Proposed ADR (use the track-qualified id)", k))
+		}
+	}
 	for i := range adrs {
 		if adrs[i].Status != domain.StatusAccepted {
 			continue
@@ -258,7 +282,6 @@ func applyDispatchState(adrs []domain.ADR, state *domain.DispatchState) []string
 		used[strings.ToLower(adrs[i].QualifiedID)] = true
 	}
 
-	var notices []string
 	keys := make([]string, 0, len(state.Dispatched))
 	for k := range state.Dispatched {
 		keys = append(keys, k)
@@ -307,6 +330,10 @@ func buildDispatchBoard(
 	for _, item := range adrs {
 		switch item.Status {
 		case domain.StatusProposed:
+			if item.Parked != "" {
+				board.ParkedADRs = append(board.ParkedADRs, item)
+				continue
+			}
 			board.ActiveADRs = append(board.ActiveADRs, item)
 		case domain.StatusAccepted:
 			if item.IsDispatched() && !allHandoffs {

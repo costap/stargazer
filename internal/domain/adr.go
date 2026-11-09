@@ -56,6 +56,10 @@ type ADR struct {
 	// an Accepted ADR have been handed off (e.g. "PROJ-5301"); empty when not dispatched.
 	Dispatched string `json:"dispatched,omitempty"`
 
+	// Parked is the reason a Proposed ADR is set aside in the state file; empty when
+	// it is in flight. Parked ADRs do not count against the WIP limit.
+	Parked string `json:"parked,omitempty"`
+
 	// Upstream alignment
 	EpochID string `json:"epoch_id,omitempty"` // Correlated roadmap epoch (e.g., "phase-1-mvp")
 }

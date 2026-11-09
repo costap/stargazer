@@ -245,3 +245,28 @@ func TestDegradedJSONSaysSo(t *testing.T) {
 		t.Errorf("degraded state must appear in the JSON: %+v", doc)
 	}
 }
+
+func TestParkedProposedADRsLeaveTheWIPCount(t *testing.T) {
+	adrs := []domain.ADR{
+		{QualifiedID: "2-product/0016", Status: domain.StatusProposed},
+		{QualifiedID: "2-product/0017", Status: domain.StatusProposed},
+		{QualifiedID: "2-product/0018", Status: domain.StatusAccepted},
+	}
+	st := &domain.DispatchState{Parked: map[string]string{
+		"2-product/0016": "waiting on PoC",
+		"2-product/0018": "accepted, cannot be parked",
+		"0017":           "bare number",
+	}}
+	notices := applyDispatchState(adrs, st)
+	board := buildDispatchBoard(nil, adrs, nil, 1, false, false)
+
+	if board.ActiveWIPCount() != 1 || len(board.ParkedADRs) != 1 || board.ParkedADRs[0].Parked != "waiting on PoC" {
+		t.Errorf("active=%d parked=%+v", board.ActiveWIPCount(), board.ParkedADRs)
+	}
+	if board.HasWIPViolation() {
+		t.Error("a parked ADR must not count against the limit")
+	}
+	if len(notices) != 2 {
+		t.Errorf("want notices for the Accepted and bare-number entries, got %q", notices)
+	}
+}

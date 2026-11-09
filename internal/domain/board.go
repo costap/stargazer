@@ -37,6 +37,9 @@ type DispatchBoard struct {
 
 	// DispatchedHidden counts Accepted ADRs left out of Handoffs because they are
 	// marked dispatched. Zero when every Accepted ADR is listed.
+	// ParkedADRs are Proposed ADRs set aside in the state file. They are not WIP.
+	ParkedADRs []ADR `json:"parked_adrs,omitempty"`
+
 	DispatchedHidden int `json:"dispatched_hidden,omitempty"`
 
 	// Signals contains candidate technologies from V'Ger / Astrometrics (e.g. status: spotted).
@@ -76,6 +79,10 @@ func NewDispatchBoard(
 	for _, item := range adrs {
 		switch item.Status {
 		case StatusProposed:
+			if item.Parked != "" {
+				board.ParkedADRs = append(board.ParkedADRs, item)
+				continue
+			}
 			board.ActiveADRs = append(board.ActiveADRs, item)
 		case StatusAccepted:
 			board.Handoffs = append(board.Handoffs, item)

@@ -24,6 +24,7 @@ type Document struct {
 	Active           []DocADR   `json:"active"`
 	Handoffs         []DocADR   `json:"handoffs"`
 	DispatchedHidden int        `json:"dispatched_hidden"`
+	Parked           []DocADR   `json:"parked"`
 	Gaps             []DocGap   `json:"gaps"`
 	Warnings         []string   `json:"warnings"`
 }
@@ -51,6 +52,7 @@ type DocADR struct {
 	NextActionSet bool   `json:"next_action_set"`
 	Dispatched    bool   `json:"dispatched"`
 	DispatchRef   string `json:"dispatch_ref"`
+	ParkedReason  string `json:"parked_reason,omitempty"`
 }
 
 // DocGap is a roadmap need with no ADR behind it yet (ref: null).
@@ -105,6 +107,9 @@ func BuildDocument(board *domain.DispatchBoard) Document {
 	for _, a := range board.ActiveADRs {
 		doc.Active = append(doc.Active, docADR(a))
 	}
+	for _, a := range board.ParkedADRs {
+		doc.Parked = append(doc.Parked, docADR(a))
+	}
 	for _, a := range board.Handoffs {
 		doc.Handoffs = append(doc.Handoffs, docADR(a))
 	}
@@ -117,7 +122,7 @@ func docADR(a domain.ADR) DocADR {
 		ID: a.QualifiedID, Title: a.Title, File: a.Filename, Date: a.Date,
 		Status: string(a.Status), StatusLine: a.StatusLine, Phase: a.EpochID,
 		NextAction: a.NextAction, NextActionSet: a.NextActionSet,
-		Dispatched: a.IsDispatched(), DispatchRef: a.Dispatched,
+		Dispatched: a.IsDispatched(), DispatchRef: a.Dispatched, ParkedReason: a.Parked,
 	}
 }
 

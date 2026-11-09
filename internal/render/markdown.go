@@ -191,6 +191,16 @@ func WriteMarkdownBoard(filePath string, board *domain.DispatchBoard) error {
 		}
 	}
 
+	if len(board.ParkedADRs) > 0 {
+		buf.WriteString(fmt.Sprintf("## 🅿️ Parked (%d, not counted as WIP)\n\n", len(board.ParkedADRs)))
+		for _, adr := range board.ParkedADRs {
+			buf.WriteString(fmt.Sprintf("### [%s] %s\n", adr.DisplayName(), adr.Title))
+			buf.WriteString(fmt.Sprintf("- **Track:** `%s` | **File:** `%s` *(Updated: %s)*\n", adr.Track, adr.Filename, adr.LastCommit))
+			buf.WriteString(fmt.Sprintf("- **Parked:** %s\n", adr.Parked))
+			buf.WriteString(fmt.Sprintf("- **Next Action:** %s\n\n", adr.NextAction))
+		}
+	}
+
 	buf.WriteString("---\n\n")
 
 	// 3. Ready for Hand-off: Accepted ADRs (Ready for Story-Gen Skill)

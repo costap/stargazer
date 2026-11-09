@@ -65,6 +65,7 @@
     }
   ],
   "dispatched_hidden": 4,
+  "parked": null,
   "gaps": [
     {
       "phase": "phase-1",
