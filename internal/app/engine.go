@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -172,7 +173,9 @@ func (e *Engine) SyncWithOptions(ctx context.Context, opts SyncOptions) error {
 	// 8. Output: the machine-readable board, when asked for. It is emitted even for a
 	// degraded board, because a consumer needs the warnings and adr_unknown to know
 	// what it cannot trust.
-	if opts.JSON != "" {
+	if opts.JSON != "" && opts.DryRun && opts.JSON != "-" {
+		fmt.Fprintf(os.Stderr, "Notice: --dry-run: %s was not written\n", opts.JSON)
+	} else if opts.JSON != "" {
 		if err := e.writeJSON(opts.JSON, board); err != nil {
 			return err
 		}
@@ -415,6 +418,10 @@ func isYouTube(u string) bool {
 	return strings.Contains(u, "youtube.com/watch") || strings.Contains(u, "youtu.be/")
 }
 
+// markdownLink matches [title](http...) anywhere in a line, so "1. **[Title](url)**"
+// and "- [Title](url)" both work.
+var markdownLink = regexp.MustCompile(`\[([^\]]+)\]\((https?://[^)\s]+)\)`)
+
 type watchFirstItem struct {
 	Title   string
 	URL     string
@@ -437,24 +444,15 @@ func extractWatchFirstLinks(raw string) []watchFirstItem {
 			break
 		}
 
-		if inWatchFirst && strings.Contains(line, "[http") && strings.Contains(line, "](") {
-			startTitle := strings.Index(line, "[")
-			endTitle := strings.Index(line, "](")
-			endURL := strings.Index(line, ")")
-
-			if startTitle != -1 && endTitle != -1 && endURL != -1 && endURL > endTitle {
-				title := strings.TrimPrefix(line[startTitle+1:endTitle], "**")
-				title = strings.TrimSuffix(title, "**")
-				u := line[endTitle+2 : endURL]
-
+		if inWatchFirst {
+			if m := markdownLink.FindStringSubmatch(line); m != nil {
 				contextText := ""
 				if i+1 < len(lines) {
 					contextText = strings.TrimSpace(lines[i+1])
 				}
-
 				items = append(items, watchFirstItem{
-					Title:   title,
-					URL:     u,
+					Title:   strings.Trim(strings.TrimSpace(m[1]), "*"),
+					URL:     m[2],
 					Context: contextText,
 				})
 			}

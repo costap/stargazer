@@ -18,6 +18,11 @@ type DispatchState struct {
 	// WIP limit.
 	Parked map[string]string `yaml:"parked"`
 
+	// Heard lists talks you have listened to, by signal id (e.g. "0016") or YouTube
+	// video id. They are left out of the playlist. The YouTube API cannot read watch
+	// history, so this is the only record.
+	Heard []string `yaml:"heard"`
+
 	// Fronts are named pieces of work that need no ADR (an initiative, go-live
 	// preparation). They have their own limit, separate from the ADR WIP.
 	Fronts map[string]Front `yaml:"fronts"`
@@ -78,4 +83,22 @@ func (s *DispatchState) Lookup(qualifiedID string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// IsHeard reports whether a talk is marked heard, by signal id or video id,
+// compared case-insensitively for ids and exactly for video ids' case-insensitive form.
+func (s *DispatchState) IsHeard(signalID, videoID string) bool {
+	if s == nil {
+		return false
+	}
+	for _, h := range s.Heard {
+		h = strings.TrimSpace(h)
+		if h == "" {
+			continue
+		}
+		if (signalID != "" && strings.EqualFold(h, signalID)) || (videoID != "" && strings.EqualFold(h, videoID)) {
+			return true
+		}
+	}
+	return false
 }

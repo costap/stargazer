@@ -108,6 +108,7 @@ stargazer sync --roadmap custom-roadmap.yaml --wip-limit 4
 
 # Render a degraded board instead of failing when an input cannot be read
 stargazer sync --keep-going
+stargazer sync --dry-run          # reconcile and report; write nothing
 
 # Also emit the board as JSON: to stdout, or to a file
 stargazer sync --json
@@ -153,6 +154,26 @@ fronts:
 Fronts have their own limit (`fronts.limit`, default 2) and never count toward the ADR limit, so an initiative cannot hide an ADR you owe, and the reverse. The board shows them in their own section, the JSON under `fronts` and `wip.fronts` / `wip.fronts_limit` / `wip.fronts_over_by`. Stargazer does not infer fronts from PRs or the readiness register: you add and remove them.
 
 **Candidates.** Set `candidates.dir` to a folder of `NNN-*.md` files, each with a `- **Status:** open` line (and optionally `Raised` and `Source`), and the board lists the open ones, oldest first. Promoted and dropped files are ignored; a numbered file with no Status field is named in a warning, not guessed. With the directory unset nothing is read. When the ADR pipeline has no free slot, or is unknown, the section says it is gated and lists the queue without any call to start one; the JSON carries `candidates.open`, `count`, `gated` and `slots`.
+
+**Audio queue.** `stargazer sync` lists the YouTube talks from the signals and from each digest's "Watch These First" section, de-duplicated, under an Audio Queue section. `--no-audio` leaves it out.
+
+**Playlist.** `stargazer playlist sync` keeps a private YouTube playlist, "Stargazer queue", in step with the audio queue so you can press play on your phone. It builds the list from the signals (newest `spotted` first), then each digest's "Watch These First" links, skips anything under `heard:` in the state file, cuts it to `youtube.playlist.cap` (default 25), and adds, removes and reorders items in the playlist it created. It never deletes the playlist and only removes items it finds in it. `--dry-run` prints the changes and writes nothing, and needs no login before the first sync. The playlist id is kept in `youtube.playlist_file` (machine-owned, git-ignored; by default beside the config file, so running from another directory never creates a second playlist). A video YouTube refuses as unavailable (deleted, private or blocked) is recorded under `unavailable` in that file and skipped from then on: the next talk takes its slot, and the sync does not fail. Delete an id from the list to try it again.
+
+```yaml
+youtube:
+  client_file: client_secret.json                       # OAuth client JSON from Google Cloud (Desktop app)
+  token_file: ~/.config/stargazer/youtube-token.json    # the login; keep it out of any repository
+  playlist:
+    title: Stargazer queue
+    cap: 25
+```
+
+```yaml
+# state file
+heard: ["0016", "29JEbs0mxTY"]   # a signal id or a video id: leaves the playlist on the next sync
+```
+
+Setup (once): create a Google Cloud project, enable the YouTube Data API v3, set the OAuth consent screen to *In production* (in *Testing* the login expires after seven days), create a *Desktop app* OAuth client and download its JSON to `youtube.client_file`. Then run `stargazer playlist login`: it opens your browser, waits for Google to return to `127.0.0.1` (random port, PKCE), and stores the token at `youtube.token_file` with owner-only permissions (`--no-browser` prints the address instead). `stargazer playlist sync --dry-run` is the next step. If you already use [V'Ger](https://github.com/costap/vger), its project can be reused (the API is already enabled), but its `YOUTUBE_API_KEY` is a read-only key: playlists need this OAuth client. The daily quota (10,000 units) is shared by everything in the project, and V'Ger searches cost 100 units each, so a separate project is cleaner. Background playback on a phone needs YouTube Premium.
 
 **Failures.** If an ADR directory cannot be read, or a roadmap you named explicitly cannot be loaded, `sync` prints what failed, exits non-zero and writes nothing. A missing roadmap at the default path is only a notice. With `--keep-going` it renders the board with a `DEGRADED` banner and exits 0, but if the ADR sources were the problem it still leaves `ARCH_DISPATCH.md` untouched: the hand-written `Next Action` lines in that file exist nowhere else, and a board with no pipeline would erase them.
 

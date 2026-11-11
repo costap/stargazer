@@ -144,11 +144,12 @@ func WriteMarkdownBoard(filePath string, board *domain.DispatchBoard) error {
 				buf.WriteString("#### 🟡 Delegated / Blocked Downstream\n")
 				for _, need := range delegatedNeeds {
 					refStr := need.DisplayRef()
-					ownerStr := strings.ToUpper(need.Owner)
-					if ownerStr == "" {
-						ownerStr = "UNASSIGNED"
+					ownerStr := need.OwnerTag()
+					desc := ""
+					if d := need.ShortDesc(100); d != "" {
+						desc = " " + d
 					}
-					buf.WriteString(fmt.Sprintf("- **[%s]** `%s` — **Owner:** `%s`\n", strings.ToUpper(string(need.Kind)), refStr, ownerStr))
+					buf.WriteString(fmt.Sprintf("- **[%s]** `%s`%s — **Owner:** `%s`\n", strings.ToUpper(string(need.Kind)), refStr, desc, ownerStr))
 					if need.Gist != "" {
 						buf.WriteString(fmt.Sprintf("  - *Gist:* %s\n", need.Gist))
 					}

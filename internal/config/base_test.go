@@ -188,3 +188,39 @@ func TestStateFileFromTheEnvironmentStaysRelativeToTheWorkingDirectory(t *testin
 		t.Errorf("env override: %+v", cfg.State)
 	}
 }
+
+func TestYouTubeFilesKeepAHomePathAndResolveRelativeOnesAgainstTheConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".stargazer.yaml")
+	body := "youtube:\n  client_file: ~/.config/stargazer/client_secret.json\n  token_file: ~/.config/stargazer/youtube-token.json\n  playlist_file: yt.json\n"
+	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	v := viper.New()
+	v.SetConfigFile(cfgPath)
+	if err := v.ReadInConfig(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.YouTube.ClientFile != "~/.config/stargazer/client_secret.json" || cfg.YouTube.TokenFile != "~/.config/stargazer/youtube-token.json" {
+		t.Errorf("a ~ path must be left for the loader to expand, not joined onto the config directory: %+v", cfg.YouTube)
+	}
+	if cfg.YouTube.PlaylistFile != filepath.Join(dir, "yt.json") {
+		t.Errorf("a relative path resolves against the config file: %s", cfg.YouTube.PlaylistFile)
+	}
+}
+
+func TestPlaylistRecordDefaultsBesideTheConfigFileNotTheWorkingDirectory(t *testing.T) {
+	v, dir := newViper(t, "adr:\n  groups:\n    - namespace: x\n      dir: adrs\n")
+	v.SetDefault("youtube.playlist_file", ".stargazer-youtube.json")
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.YouTube.PlaylistFile != filepath.Join(dir, ".stargazer-youtube.json") {
+		t.Errorf("running from another directory must find the same record, got %s", cfg.YouTube.PlaylistFile)
+	}
+}

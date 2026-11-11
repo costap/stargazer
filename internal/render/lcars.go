@@ -193,7 +193,7 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 						amberStyle.Render("│"),
 						blueStyle.Render(kindStr),
 						whiteStyle.Render(need.DisplayRef()),
-						dimStyle.Render(truncate(need.Gist, 26)),
+						dimStyle.Render(need.ShortDesc(40)),
 					)
 					if need.Note != "" {
 						fmt.Printf("  %s      %s %s\n",
@@ -211,17 +211,20 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 				fmt.Printf("  %s  %s\n", amberStyle.Render("│"), amberStyle.Bold(true).Render("▼ DELEGATED / UPSTREAM BLOCKED"))
 				for _, need := range delegated {
 					kindStr := fmt.Sprintf("[%-4s]", strings.ToUpper(string(need.Kind)))
-					ownerTag := strings.ToUpper(need.Owner)
-					if ownerTag == "" {
-						ownerTag = "UNASSIGNED"
-					}
 					fmt.Printf("  %s    • %s %-24s %s %s\n",
 						amberStyle.Render("│"),
 						dimStyle.Render(kindStr),
 						whiteStyle.Render(need.DisplayRef()),
 						dimStyle.Render("OWNER:"),
-						amberStyle.Render(ownerTag),
+						amberStyle.Render(need.OwnerTag()),
 					)
+					if d := need.ShortDesc(80); d != "" {
+						fmt.Printf("  %s      %s %s\n",
+							amberStyle.Render("│"),
+							dimStyle.Render("└─"),
+							whiteStyle.Render(d),
+						)
+					}
 					if len(need.Blocks) > 0 {
 						fmt.Printf("  %s      %s %s\n",
 							amberStyle.Render("│"),

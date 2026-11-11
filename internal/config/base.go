@@ -30,6 +30,19 @@ type Config struct {
 		Dir string `mapstructure:"dir"`
 	} `mapstructure:"candidates"`
 
+	YouTube struct {
+		// ClientFile is the OAuth client JSON downloaded from Google Cloud.
+		ClientFile string `mapstructure:"client_file"`
+		// TokenFile holds the login token. Keep it outside any repository.
+		TokenFile string `mapstructure:"token_file"`
+		// PlaylistFile records the playlist Stargazer created (machine-owned).
+		PlaylistFile string `mapstructure:"playlist_file"`
+		Playlist     struct {
+			Title string `mapstructure:"title"`
+			Cap   int    `mapstructure:"cap"`
+		} `mapstructure:"playlist"`
+	} `mapstructure:"youtube"`
+
 	Roadmap struct {
 		File string `mapstructure:"file"`
 
@@ -97,6 +110,18 @@ func Load(v *viper.Viper, overridden ...string) (*Config, error) {
 	}
 	if fromConfig("candidates.dir") {
 		cfg.Candidates.Dir = resolve(configDir, cfg.Candidates.Dir)
+	}
+	if fromConfig("youtube.client_file") && !strings.HasPrefix(cfg.YouTube.ClientFile, "~") {
+		cfg.YouTube.ClientFile = resolve(configDir, cfg.YouTube.ClientFile)
+	}
+	if fromConfig("youtube.token_file") && !strings.HasPrefix(cfg.YouTube.TokenFile, "~") {
+		cfg.YouTube.TokenFile = resolve(configDir, cfg.YouTube.TokenFile)
+	}
+	// The playlist record is what stops a second playlist being created, so its default
+	// location must not depend on the directory the command is run from: with a config
+	// file, it sits beside that file.
+	if configDir != "" && !flagSet["youtube.playlist_file"] && !envSet("youtube.playlist_file") {
+		cfg.YouTube.PlaylistFile = resolve(configDir, cfg.YouTube.PlaylistFile)
 	}
 	if fromConfig("dispatch.output") {
 		cfg.Dispatch.Output = resolve(configDir, cfg.Dispatch.Output)
