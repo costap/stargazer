@@ -42,9 +42,30 @@ type ADR struct {
 	NextAction string    `json:"next_action"` // Scratchpad preserved across sync runs
 	LastCommit string    `json:"last_commit"` // Relative git freshness e.g. "2 days ago"
 
+	// Date is the "Date: YYYY-MM-DD" line of the ADR, empty when absent.
+	Date string `json:"date,omitempty"`
+
+	// StatusLine is the first line under "## Status", verbatim (e.g. "Proposed - pending PoC").
+	StatusLine string `json:"status_line,omitempty"`
+
+	// NextActionSet is true when NextAction was written by hand, false when it is
+	// one of the generated defaults.
+	NextActionSet bool `json:"next_action_set"`
+
+	// Dispatched is the reference recorded in the state file once the stories for
+	// an Accepted ADR have been handed off (e.g. "PROJ-5301"); empty when not dispatched.
+	Dispatched string `json:"dispatched,omitempty"`
+
+	// Parked is the reason a Proposed ADR is set aside in the state file; empty when
+	// it is in flight. Parked ADRs do not count against the WIP limit.
+	Parked string `json:"parked,omitempty"`
+
 	// Upstream alignment
 	EpochID string `json:"epoch_id,omitempty"` // Correlated roadmap epoch (e.g., "phase-1-mvp")
 }
+
+// IsDispatched reports whether the ADR has been marked as handed off.
+func (a *ADR) IsDispatched() bool { return a.Dispatched != "" }
 
 // Matches checks whether an input reference matches this ADR.
 // Supports:

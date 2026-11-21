@@ -20,6 +20,29 @@ type Config struct {
 		Groups   []ADRGroupConfig `mapstructure:"groups"`
 	} `mapstructure:"adr"`
 
+	Fronts struct {
+		// Limit caps the non-ADR fronts in flight (state file). Zero means no limit.
+		Limit int `mapstructure:"limit"`
+	} `mapstructure:"fronts"`
+
+	Candidates struct {
+		// Dir holds NNN-*.md ADR candidate files. Unset means candidates are not read.
+		Dir string `mapstructure:"dir"`
+	} `mapstructure:"candidates"`
+
+	YouTube struct {
+		// ClientFile is the OAuth client JSON downloaded from Google Cloud.
+		ClientFile string `mapstructure:"client_file"`
+		// TokenFile holds the login token. Keep it outside any repository.
+		TokenFile string `mapstructure:"token_file"`
+		// PlaylistFile records the playlist Stargazer created (machine-owned).
+		PlaylistFile string `mapstructure:"playlist_file"`
+		Playlist     struct {
+			Title string `mapstructure:"title"`
+			Cap   int    `mapstructure:"cap"`
+		} `mapstructure:"playlist"`
+	} `mapstructure:"youtube"`
+
 	Roadmap struct {
 		File string `mapstructure:"file"`
 
@@ -28,6 +51,13 @@ type Config struct {
 		// normal in the second case and an error in the first.
 		Explicit bool `mapstructure:"-"`
 	} `mapstructure:"roadmap"`
+
+	State struct {
+		// File records which Accepted ADRs have been dispatched. A missing file at
+		// the default path means nothing is dispatched yet.
+		File     string `mapstructure:"file"`
+		Explicit bool   `mapstructure:"-"`
+	} `mapstructure:"state"`
 
 	Signals struct {
 		Source      string   `mapstructure:"source"`
@@ -60,6 +90,8 @@ func Load(v *viper.Viper, overridden ...string) (*Config, error) {
 	}
 	cfg.Roadmap.Explicit = flagSet["roadmap.file"] || envSet("roadmap.file") || v.InConfig("roadmap.file")
 
+	cfg.State.Explicit = envSet("state.file") || v.InConfig("state.file")
+
 	configDir := ""
 	if used := v.ConfigFileUsed(); used != "" {
 		if abs, err := filepath.Abs(filepath.Dir(used)); err == nil {
@@ -72,6 +104,24 @@ func Load(v *viper.Viper, overridden ...string) (*Config, error) {
 
 	if fromConfig("roadmap.file") {
 		cfg.Roadmap.File = resolve(configDir, cfg.Roadmap.File)
+	}
+	if fromConfig("state.file") {
+		cfg.State.File = resolve(configDir, cfg.State.File)
+	}
+	if fromConfig("candidates.dir") {
+		cfg.Candidates.Dir = resolve(configDir, cfg.Candidates.Dir)
+	}
+	if fromConfig("youtube.client_file") && !strings.HasPrefix(cfg.YouTube.ClientFile, "~") {
+		cfg.YouTube.ClientFile = resolve(configDir, cfg.YouTube.ClientFile)
+	}
+	if fromConfig("youtube.token_file") && !strings.HasPrefix(cfg.YouTube.TokenFile, "~") {
+		cfg.YouTube.TokenFile = resolve(configDir, cfg.YouTube.TokenFile)
+	}
+	// The playlist record is what stops a second playlist being created, so its default
+	// location must not depend on the directory the command is run from: with a config
+	// file, it sits beside that file.
+	if configDir != "" && !flagSet["youtube.playlist_file"] && !envSet("youtube.playlist_file") {
+		cfg.YouTube.PlaylistFile = resolve(configDir, cfg.YouTube.PlaylistFile)
 	}
 	if fromConfig("dispatch.output") {
 		cfg.Dispatch.Output = resolve(configDir, cfg.Dispatch.Output)

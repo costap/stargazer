@@ -1,0 +1,166 @@
+package render
+
+import (
+	"encoding/json"
+	"io"
+	"strings"
+	"time"
+
+	"github.com/costap/stargazer/internal/domain"
+)
+
+// JSONSchemaVersion is bumped on any breaking change to the document: a field
+// removed, renamed or given a different meaning. Adding a field is not breaking.
+const JSONSchemaVersion = 1
+
+// Document is the machine-readable form of a DispatchBoard. Consumers read this
+// instead of scraping ARCH_DISPATCH.md.
+type Document struct {
+	Schema           int            `json:"schema"`
+	SyncedAt         string         `json:"synced_at"`
+	ADRUnknown       bool           `json:"adr_unknown"`
+	WIP              DocWIP         `json:"wip"`
+	Launch           *DocLaunch     `json:"launch"`
+	Active           []DocADR       `json:"active"`
+	Handoffs         []DocADR       `json:"handoffs"`
+	DispatchedHidden int            `json:"dispatched_hidden"`
+	Parked           []DocADR       `json:"parked"`
+	Fronts           []domain.Front `json:"fronts"`
+	Candidates       *DocCandidates `json:"candidates,omitempty"`
+	Gaps             []DocGap       `json:"gaps"`
+	Warnings         []string       `json:"warnings"`
+}
+
+type DocWIP struct {
+	Limit  int `json:"limit"`
+	Count  int `json:"count"`
+	OverBy int `json:"over_by"`
+	// Parked counts Proposed ADRs set aside in the state file; they are not in Count.
+	Parked int `json:"parked"`
+	// Fronts counts non-ADR fronts in flight, against FrontsLimit; separate from Count.
+	Fronts      int `json:"fronts"`
+	FrontsLimit int `json:"fronts_limit"`
+	FrontsOver  int `json:"fronts_over_by"`
+}
+
+// DocCandidates is the ADR candidate queue and its gate. Gated means the pipeline has
+// no free slot (or is unknown), so the queue waits and must not be offered as work.
+type DocCandidates struct {
+	Open  []domain.Candidate `json:"open"`
+	Count int                `json:"count"`
+	Gated bool               `json:"gated"`
+	Slots int                `json:"slots"`
+}
+
+type DocLaunch struct {
+	Date string `json:"date"`
+	Days int    `json:"days"`
+}
+
+type DocADR struct {
+	ID            string `json:"id"`
+	Title         string `json:"title"`
+	File          string `json:"file"`
+	Date          string `json:"date"`
+	Status        string `json:"status"`
+	StatusLine    string `json:"status_line"`
+	Phase         string `json:"phase"`
+	NextAction    string `json:"next_action"`
+	NextActionSet bool   `json:"next_action_set"`
+	Dispatched    bool   `json:"dispatched"`
+	DispatchRef   string `json:"dispatch_ref"`
+	ParkedReason  string `json:"parked_reason,omitempty"`
+}
+
+// DocGap is a roadmap need with no ADR behind it yet (ref: null).
+type DocGap struct {
+	Phase string `json:"phase"`
+	// PhaseStatus is the phase's status in roadmap.yaml (e.g. "in-flight", "horizon").
+	PhaseStatus string   `json:"phase_status"`
+	Kind        string   `json:"kind"`
+	Gist        string   `json:"gist"`
+	Owner       string   `json:"owner"`
+	Blocks      []string `json:"blocks"`
+}
+
+// BuildDocument converts the board into its document. Slices are never nil, so a
+// consumer sees [] rather than null.
+func BuildDocument(board *domain.DispatchBoard) Document {
+	doc := Document{
+		Schema:           JSONSchemaVersion,
+		SyncedAt:         board.SyncedAt.UTC().Format(time.RFC3339),
+		ADRUnknown:       board.ADRUnknown,
+		Active:           []DocADR{},
+		Handoffs:         []DocADR{},
+		Parked:           []DocADR{},
+		Fronts:           []domain.Front{},
+		DispatchedHidden: board.DispatchedHidden,
+		Gaps:             []DocGap{},
+		Warnings:         []string{},
+	}
+
+	count := board.ActiveWIPCount()
+	doc.WIP = DocWIP{Limit: board.WIPLimit, Count: count, Parked: len(board.ParkedADRs), Fronts: len(board.Fronts), FrontsLimit: board.FrontsLimit}
+	if board.FrontsOver() {
+		doc.WIP.FrontsOver = len(board.Fronts) - board.FrontsLimit
+	}
+	doc.Fronts = append(doc.Fronts, board.Fronts...)
+	if c := board.Candidates; c != nil && c.Configured {
+		open := c.Open
+		if open == nil {
+			open = []domain.Candidate{}
+		}
+		doc.Candidates = &DocCandidates{Open: open, Count: len(open), Gated: board.CandidatesGated(), Slots: board.FreeSlots()}
+	}
+	if count > board.WIPLimit {
+		doc.WIP.OverBy = count - board.WIPLimit
+	}
+
+	if board.Roadmap != nil {
+		if board.Roadmap.LaunchDate != "" {
+			doc.Launch = &DocLaunch{Date: board.Roadmap.LaunchDate, Days: board.Roadmap.DaysUntilLaunch()}
+		}
+		for _, p := range board.Roadmap.Phases {
+			for _, n := range p.Needs {
+				if n.Ref != nil && *n.Ref != "" {
+					continue
+				}
+				blocks := n.Blocks
+				if blocks == nil {
+					blocks = []string{}
+				}
+				doc.Gaps = append(doc.Gaps, DocGap{
+					Phase: p.ID, PhaseStatus: p.Status, Kind: string(n.Kind), Gist: strings.TrimSpace(n.Gist), Owner: n.Owner, Blocks: blocks,
+				})
+			}
+		}
+	}
+
+	for _, a := range board.ActiveADRs {
+		doc.Active = append(doc.Active, docADR(a))
+	}
+	for _, a := range board.ParkedADRs {
+		doc.Parked = append(doc.Parked, docADR(a))
+	}
+	for _, a := range board.Handoffs {
+		doc.Handoffs = append(doc.Handoffs, docADR(a))
+	}
+	doc.Warnings = append(doc.Warnings, board.Warnings...)
+	return doc
+}
+
+func docADR(a domain.ADR) DocADR {
+	return DocADR{
+		ID: a.QualifiedID, Title: a.Title, File: a.Filename, Date: a.Date,
+		Status: string(a.Status), StatusLine: a.StatusLine, Phase: a.EpochID,
+		NextAction: a.NextAction, NextActionSet: a.NextActionSet,
+		Dispatched: a.IsDispatched(), DispatchRef: a.Dispatched, ParkedReason: a.Parked,
+	}
+}
+
+// WriteJSON writes the document, indented, followed by a newline.
+func WriteJSON(w io.Writer, board *domain.DispatchBoard) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(BuildDocument(board))
+}

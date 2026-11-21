@@ -108,10 +108,72 @@ stargazer sync --roadmap custom-roadmap.yaml --wip-limit 4
 
 # Render a degraded board instead of failing when an input cannot be read
 stargazer sync --keep-going
+stargazer sync --dry-run          # reconcile and report; write nothing
+
+# Also emit the board as JSON: to stdout, or to a file
+stargazer sync --json
+stargazer sync --json=board.json
+
+# List every Accepted ADR in the hand-off section, dispatched or not
+stargazer sync --all-handoffs
 
 ```
 
 **Paths.** A relative path set in the config file is resolved against the config file's own directory, so the same file behaves the same from any working directory. A path given as a flag (`--roadmap`, `--out`, `--signals`) or an environment variable stays relative to where you run the command.
+
+**JSON.** `--json` prints one JSON document to stdout and nothing else (the terminal board is suppressed); `--json=path` writes it to a file. The markdown board is still written. The document has a `schema` number that changes only on a breaking change, the WIP count, the launch countdown, the active and hand-off ADRs (with `date`, `status_line`, `phase`, `next_action` and whether you wrote it by hand), the roadmap gaps, and `warnings` and `adr_unknown` so a consumer can tell a degraded board from a calm one.
+
+**Dispatch state.** The hand-off section lists Accepted ADRs awaiting stories. To record that an ADR's stories have been handed off, add it to the state file (`state.file`, default `.stargazer-state.yaml`), keyed by its track-qualified id:
+
+```yaml
+dispatched:
+  2-product/0099: PROJ-5301   # a ticket key, or any note such as "done"
+```
+
+A dispatched ADR drops out of the hand-off section on the next sync and stays out; the section says how many were left out. A key with no value still means dispatched. An entry that matches no Accepted ADR (a typo, a bare number, an ADR that is still Proposed) prints a `Notice:` and is ignored. A missing state file at the default path means nothing is dispatched; one you named in the config that is missing, or one that cannot be parsed, fails the sync like any other unreadable input.
+
+**What counts as WIP.** Work in progress is the Proposed ADRs that are not parked, and nothing else. To set a Proposed ADR aside, park it in the same state file with a reason:
+
+```yaml
+parked:
+  2-product/0016: waiting on the load-test PoC
+```
+
+A parked ADR stays on the board in its own section (with its hand-written Next Action) but costs no slot; the JSON reports it under `parked` and in `wip.parked`. Parking is always your decision: Stargazer does not infer it from words after `Proposed` in the Status line. An entry that matches no Proposed ADR (a typo, a bare number, an Accepted ADR) prints a `Notice:`. Remove the line to unpark.
+
+**Fronts (work with no ADR).** Go-live preparation or an initiative like operator provisioning never produces an ADR but still takes the deep block. Record it as a front in the state file:
+
+```yaml
+fronts:
+  provisioning:
+    title: Operator and brand provisioning
+    next: settle whether the launch brand delegates risk
+    ref: PR 49            # optional: a PR, epic or register area
+```
+
+Fronts have their own limit (`fronts.limit`, default 2) and never count toward the ADR limit, so an initiative cannot hide an ADR you owe, and the reverse. The board shows them in their own section, the JSON under `fronts` and `wip.fronts` / `wip.fronts_limit` / `wip.fronts_over_by`. Stargazer does not infer fronts from PRs or the readiness register: you add and remove them.
+
+**Candidates.** Set `candidates.dir` to a folder of `NNN-*.md` files, each with a `- **Status:** open` line (and optionally `Raised` and `Source`), and the board lists the open ones, oldest first. Promoted and dropped files are ignored; a numbered file with no Status field is named in a warning, not guessed. With the directory unset nothing is read. When the ADR pipeline has no free slot, or is unknown, the section says it is gated and lists the queue without any call to start one; the JSON carries `candidates.open`, `count`, `gated` and `slots`.
+
+**Audio queue.** `stargazer sync` lists the YouTube talks from the signals and from each digest's "Watch These First" section, de-duplicated, under an Audio Queue section. `--no-audio` leaves it out.
+
+**Playlist.** `stargazer playlist sync` keeps a private YouTube playlist, "Stargazer queue", in step with the audio queue so you can press play on your phone. It builds the list from the signals (newest `spotted` first), then each digest's "Watch These First" links, skips anything under `heard:` in the state file, cuts it to `youtube.playlist.cap` (default 25), and adds, removes and reorders items in the playlist it created. It never deletes the playlist and only removes items it finds in it. `--dry-run` prints the changes and writes nothing, and needs no login before the first sync. The playlist id is kept in `youtube.playlist_file` (machine-owned, git-ignored; by default beside the config file, so running from another directory never creates a second playlist). A video YouTube refuses as unavailable (deleted, private or blocked) is recorded under `unavailable` in that file and skipped from then on: the next talk takes its slot, and the sync does not fail. Delete an id from the list to try it again.
+
+```yaml
+youtube:
+  client_file: client_secret.json                       # OAuth client JSON from Google Cloud (Desktop app)
+  token_file: ~/.config/stargazer/youtube-token.json    # the login; keep it out of any repository
+  playlist:
+    title: Stargazer queue
+    cap: 25
+```
+
+```yaml
+# state file
+heard: ["0016", "29JEbs0mxTY"]   # a signal id or a video id: leaves the playlist on the next sync
+```
+
+Setup (once): create a Google Cloud project, enable the YouTube Data API v3, set the OAuth consent screen to *In production* (in *Testing* the login expires after seven days), create a *Desktop app* OAuth client and download its JSON to `youtube.client_file`. Then run `stargazer playlist login`: it opens your browser, waits for Google to return to `127.0.0.1` (random port, PKCE), and stores the token at `youtube.token_file` with owner-only permissions (`--no-browser` prints the address instead). `stargazer playlist sync --dry-run` is the next step. If you already use [V'Ger](https://github.com/costap/vger), its project can be reused (the API is already enabled), but its `YOUTUBE_API_KEY` is a read-only key: playlists need this OAuth client. The daily quota (10,000 units) is shared by everything in the project, and V'Ger searches cost 100 units each, so a separate project is cleaner. Background playback on a phone needs YouTube Premium.
 
 **Failures.** If an ADR directory cannot be read, or a roadmap you named explicitly cannot be loaded, `sync` prints what failed, exits non-zero and writes nothing. A missing roadmap at the default path is only a notice. With `--keep-going` it renders the board with a `DEGRADED` banner and exits 0, but if the ADR sources were the problem it still leaves `ARCH_DISPATCH.md` untouched: the hand-written `Next Action` lines in that file exist nowhere else, and a board with no pipeline would erase them.
 

@@ -12,13 +12,19 @@ var (
 	syncRoadmapPath   string
 	syncSignalsSource string
 	syncOutputPath    string
-	syncWIPLimit      int
 	syncDryRun        bool
-	syncAudioQueue    bool
+	syncNoAudio       bool
 	syncKeepGoing     bool
+	syncAllHandoffs   bool
+	syncJSON          string
 )
 
 func init() {
+	syncCmd.Flags().BoolVar(&syncAllHandoffs, "all-handoffs", false, "list every Accepted ADR in the hand-off section, including those marked dispatched in the state file")
+	syncCmd.Flags().StringVar(&syncJSON, "json", "", "also emit the board as JSON: to stdout when given without a value (the terminal board is then suppressed), or to the file given as --json=path")
+	syncCmd.Flags().Lookup("json").NoOptDefVal = "-"
+	syncCmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "reconcile and report, but write nothing: the markdown board and any --json=path file are left alone (--json on stdout still prints)")
+	syncCmd.Flags().BoolVar(&syncNoAudio, "no-audio", false, "leave the off-desk audio queue (YouTube talks from signals and digests) out of the board")
 	syncCmd.Flags().BoolVar(&syncKeepGoing, "keep-going", false, "render a degraded board when an input cannot be read, instead of failing")
 }
 
@@ -59,8 +65,10 @@ signals.json (including conference talk queues), and outputs a regenerated ARCH_
 		if syncSignalsSource != "" {
 			cfg.Signals.Source = syncSignalsSource
 		}
-		if cmd.Flags().Changed("wip-limit") {
-			cfg.ADR.WIPLimit = syncWIPLimit
+
+		// JSON on stdout must be the only thing on stdout.
+		if syncJSON == "-" {
+			cfg.Dispatch.Silent = true
 		}
 
 		// 3. Initialize engine via package app
@@ -69,8 +77,10 @@ signals.json (including conference talk queues), and outputs a regenerated ARCH_
 		// 4. Run reconciliation workflow
 		syncOpts := app.SyncOptions{
 			DryRun:            syncDryRun,
-			IncludeAudioQueue: syncAudioQueue,
+			IncludeAudioQueue: !syncNoAudio,
 			KeepGoing:         syncKeepGoing,
+			AllHandoffs:       syncAllHandoffs,
+			JSON:              syncJSON,
 		}
 
 		if err := engine.SyncWithOptions(ctx, syncOpts); err != nil {

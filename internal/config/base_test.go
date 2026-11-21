@@ -150,3 +150,77 @@ func TestLoadRoadmapSetInConfigIsExplicit(t *testing.T) {
 		t.Error("a roadmap set in the config file must count as explicit")
 	}
 }
+
+func TestStateFileResolvesAgainstTheConfigDirectoryAndIsExplicit(t *testing.T) {
+	v, dir := newViper(t, "state:\n  file: \"records/state.yaml\"\n")
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(dir, "records/state.yaml"); cfg.State.File != want {
+		t.Errorf("state file = %q, want %q", cfg.State.File, want)
+	}
+	if !cfg.State.Explicit {
+		t.Error("a state file named in the config is explicit: if it is missing that is an error")
+	}
+}
+
+func TestStateFileDefaultIsNotExplicitAndStaysRelative(t *testing.T) {
+	v, _ := newViper(t, "adr:\n  wip_limit: 3\n")
+	v.SetDefault("state.file", ".stargazer-state.yaml")
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.State.File != ".stargazer-state.yaml" || cfg.State.Explicit {
+		t.Errorf("default must stay as is and not be explicit: %+v", cfg.State)
+	}
+}
+
+func TestStateFileFromTheEnvironmentStaysRelativeToTheWorkingDirectory(t *testing.T) {
+	t.Setenv("STARGAZER_STATE_FILE", "mine.yaml")
+	v, _ := newViper(t, "state:\n  file: \"records/state.yaml\"\n")
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.State.File != "mine.yaml" || !cfg.State.Explicit {
+		t.Errorf("env override: %+v", cfg.State)
+	}
+}
+
+func TestYouTubeFilesKeepAHomePathAndResolveRelativeOnesAgainstTheConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".stargazer.yaml")
+	body := "youtube:\n  client_file: ~/.config/stargazer/client_secret.json\n  token_file: ~/.config/stargazer/youtube-token.json\n  playlist_file: yt.json\n"
+	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	v := viper.New()
+	v.SetConfigFile(cfgPath)
+	if err := v.ReadInConfig(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.YouTube.ClientFile != "~/.config/stargazer/client_secret.json" || cfg.YouTube.TokenFile != "~/.config/stargazer/youtube-token.json" {
+		t.Errorf("a ~ path must be left for the loader to expand, not joined onto the config directory: %+v", cfg.YouTube)
+	}
+	if cfg.YouTube.PlaylistFile != filepath.Join(dir, "yt.json") {
+		t.Errorf("a relative path resolves against the config file: %s", cfg.YouTube.PlaylistFile)
+	}
+}
+
+func TestPlaylistRecordDefaultsBesideTheConfigFileNotTheWorkingDirectory(t *testing.T) {
+	v, dir := newViper(t, "adr:\n  groups:\n    - namespace: x\n      dir: adrs\n")
+	v.SetDefault("youtube.playlist_file", ".stargazer-youtube.json")
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.YouTube.PlaylistFile != filepath.Join(dir, ".stargazer-youtube.json") {
+		t.Errorf("running from another directory must find the same record, got %s", cfg.YouTube.PlaylistFile)
+	}
+}

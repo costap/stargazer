@@ -144,11 +144,12 @@ func WriteMarkdownBoard(filePath string, board *domain.DispatchBoard) error {
 				buf.WriteString("#### 🟡 Delegated / Blocked Downstream\n")
 				for _, need := range delegatedNeeds {
 					refStr := need.DisplayRef()
-					ownerStr := strings.ToUpper(need.Owner)
-					if ownerStr == "" {
-						ownerStr = "UNASSIGNED"
+					ownerStr := need.OwnerTag()
+					desc := ""
+					if d := need.ShortDesc(100); d != "" {
+						desc = " " + d
 					}
-					buf.WriteString(fmt.Sprintf("- **[%s]** `%s` — **Owner:** `%s`\n", strings.ToUpper(string(need.Kind)), refStr, ownerStr))
+					buf.WriteString(fmt.Sprintf("- **[%s]** `%s`%s — **Owner:** `%s`\n", strings.ToUpper(string(need.Kind)), refStr, desc, ownerStr))
 					if need.Gist != "" {
 						buf.WriteString(fmt.Sprintf("  - *Gist:* %s\n", need.Gist))
 					}
@@ -168,7 +169,7 @@ func WriteMarkdownBoard(filePath string, board *domain.DispatchBoard) error {
 	// 2. Active Pipeline: Proposed ADRs (WIP limit enforcement)
 	wipWarn := ""
 	if board.HasWIPViolation() {
-		wipWarn = fmt.Sprintf(" ⚠️ **WIP VIOLATION (%d active > limit %d)**", len(board.ActiveADRs), board.WIPLimit)
+		wipWarn = fmt.Sprintf(" ⚠️ **WIP VIOLATION (%d active, parked excluded, > limit %d)**", len(board.ActiveADRs), board.WIPLimit)
 	}
 	buf.WriteString(fmt.Sprintf("## 🚀 Active Pipeline (Proposed / Under Review)%s\n", wipWarn))
 	buf.WriteString("*RFCs requiring decisions, benchmarks, or lead sign-off.*\n\n")
@@ -191,6 +192,50 @@ func WriteMarkdownBoard(filePath string, board *domain.DispatchBoard) error {
 		}
 	}
 
+	if len(board.ParkedADRs) > 0 {
+		buf.WriteString(fmt.Sprintf("## 🅿️ Parked (%d, not counted as WIP)\n\n", len(board.ParkedADRs)))
+		for _, adr := range board.ParkedADRs {
+			buf.WriteString(fmt.Sprintf("### [%s] %s\n", adr.DisplayName(), adr.Title))
+			buf.WriteString(fmt.Sprintf("- **Track:** `%s` | **File:** `%s` *(Updated: %s)*\n", adr.Track, adr.Filename, adr.LastCommit))
+			buf.WriteString(fmt.Sprintf("- **Parked:** %s\n", adr.Parked))
+			buf.WriteString(fmt.Sprintf("- **Next Action:** %s\n\n", adr.NextAction))
+		}
+	}
+
+	if c := board.Candidates; c != nil && c.Configured {
+		if len(c.Open) == 0 {
+			buf.WriteString("## 🧪 ADR Candidates\n\n_None open._\n\n")
+		} else if board.CandidatesGated() {
+			buf.WriteString(fmt.Sprintf("## 🧪 ADR Candidates (%d wait, GATED: %d of %d slots used)\n\n", len(c.Open), len(board.ActiveADRs), board.WIPLimit))
+			buf.WriteString("_Close or park a Proposed ADR before drafting any of these._\n\n")
+			for _, cand := range c.Open {
+				buf.WriteString(fmt.Sprintf("- %s %s\n", cand.ID, cand.Title))
+			}
+			buf.WriteString("\n")
+		} else {
+			buf.WriteString(fmt.Sprintf("## 🧪 ADR Candidates (%d open, %d free slot(s))\n\n", len(c.Open), board.FreeSlots()))
+			for _, cand := range c.Open {
+				buf.WriteString(fmt.Sprintf("- %s %s\n", cand.ID, cand.Title))
+			}
+			buf.WriteString("\n")
+		}
+	}
+
+	if len(board.Fronts) > 0 {
+		over := ""
+		if board.FrontsOver() {
+			over = " ⚠️ **OVER LIMIT**"
+		}
+		buf.WriteString(fmt.Sprintf("## 🧭 Fronts (non-ADR work: %d of %d)%s\n\n", len(board.Fronts), board.FrontsLimit, over))
+		for _, f := range board.Fronts {
+			buf.WriteString(fmt.Sprintf("### [%s] %s\n", f.ID, f.Title))
+			if f.Ref != "" {
+				buf.WriteString(fmt.Sprintf("- **Ref:** %s\n", f.Ref))
+			}
+			buf.WriteString(fmt.Sprintf("- **Next Action:** %s\n\n", f.Next))
+		}
+	}
+
 	buf.WriteString("---\n\n")
 
 	// 3. Ready for Hand-off: Accepted ADRs (Ready for Story-Gen Skill)
@@ -209,11 +254,21 @@ func WriteMarkdownBoard(filePath string, board *domain.DispatchBoard) error {
 			if adr.EpochID != "" {
 				epochBadge = fmt.Sprintf(" `[%s]`", adr.EpochID)
 			}
-			buf.WriteString(fmt.Sprintf("- [ ] **[%s] %s**%s\n", adr.DisplayName(), adr.Title, epochBadge))
+			box := " "
+			if adr.IsDispatched() {
+				box = "x"
+			}
+			buf.WriteString(fmt.Sprintf("- [%s] **[%s] %s**%s\n", box, adr.DisplayName(), adr.Title, epochBadge))
 			buf.WriteString(fmt.Sprintf("  - **File:** `%s`\n", adr.Filename))
+			if adr.IsDispatched() {
+				buf.WriteString(fmt.Sprintf("  - **Dispatched:** %s\n", adr.Dispatched))
+			}
 			buf.WriteString(fmt.Sprintf("  - **Next Action:** %s\n", adr.NextAction))
 		}
 		buf.WriteString("\n")
+	}
+	if board.DispatchedHidden > 0 {
+		buf.WriteString(fmt.Sprintf("_%d dispatched ADRs not listed (`--all-handoffs` shows them)._\n\n", board.DispatchedHidden))
 	}
 
 	buf.WriteString("---\n\n")

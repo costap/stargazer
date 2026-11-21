@@ -90,3 +90,33 @@ func TestTwoTracksSharingANumberStayDistinct(t *testing.T) {
 		t.Errorf("tracks collided or lost status: %v", ids)
 	}
 }
+
+func TestDateAndStatusLineAreCaptured(t *testing.T) {
+	a := parse(t, "0007-x.md", "# 7. X\n\nDate: 2026-10-26\n\n## Status\n\nProposed - pending PoC\n\nRelated to: ADR-0001\n\n## Context\n\nDate: 1999-01-01\n")
+	if a.Date != "2026-10-26" {
+		t.Errorf("date = %q (the first Date line wins)", a.Date)
+	}
+	if a.StatusLine != "Proposed - pending PoC" {
+		t.Errorf("status line = %q (only the first line under Status)", a.StatusLine)
+	}
+	b := parse(t, "0008-y.md", "# 8. Y\n\n## Status\n\nAccepted\n")
+	if b.Date != "" {
+		t.Errorf("an ADR without a date has none, got %q", b.Date)
+	}
+}
+
+func TestLoadDispatchStateReadsFronts(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "s.yaml")
+	y := "fronts:\n  provisioning:\n    title: Provisioning\n    next: settle risk delegation\n    ref: PR 49\n"
+	if err := os.WriteFile(p, []byte(y), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := LoadDispatchState(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := st.OrderedFronts()
+	if len(f) != 1 || f[0].ID != "provisioning" || f[0].Next != "settle risk delegation" || f[0].Ref != "PR 49" {
+		t.Errorf("fronts: %+v", f)
+	}
+}

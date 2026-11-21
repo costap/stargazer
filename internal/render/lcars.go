@@ -127,9 +127,9 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 		modeBadge = "DRY-RUN // NO-COMMIT"
 	}
 
-	bannerTitle := "STARGAZER SYSTEM DISPATCH"
+	bannerTitle := fmt.Sprintf("STARGAZER SYSTEM DISPATCH : %s", domain.StardateString(time.Now()))
 	fmt.Printf("\n %s %s %s\n",
-		capRegistry.Render(fmt.Sprintf("NCC-2882 : %s", domain.StardateString(time.Now()))),
+		capRegistry.Render("NCC-2882"),
 		capTitle.Render(fmt.Sprintf("%-42s", bannerTitle)),
 		capRegistry.Render(modeBadge),
 	)
@@ -193,7 +193,7 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 						amberStyle.Render("│"),
 						blueStyle.Render(kindStr),
 						whiteStyle.Render(need.DisplayRef()),
-						dimStyle.Render(truncate(need.Gist, 26)),
+						dimStyle.Render(need.ShortDesc(40)),
 					)
 					if need.Note != "" {
 						fmt.Printf("  %s      %s %s\n",
@@ -211,17 +211,20 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 				fmt.Printf("  %s  %s\n", amberStyle.Render("│"), amberStyle.Bold(true).Render("▼ DELEGATED / UPSTREAM BLOCKED"))
 				for _, need := range delegated {
 					kindStr := fmt.Sprintf("[%-4s]", strings.ToUpper(string(need.Kind)))
-					ownerTag := strings.ToUpper(need.Owner)
-					if ownerTag == "" {
-						ownerTag = "UNASSIGNED"
-					}
 					fmt.Printf("  %s    • %s %-24s %s %s\n",
 						amberStyle.Render("│"),
 						dimStyle.Render(kindStr),
 						whiteStyle.Render(need.DisplayRef()),
 						dimStyle.Render("OWNER:"),
-						amberStyle.Render(ownerTag),
+						amberStyle.Render(need.OwnerTag()),
 					)
+					if d := need.ShortDesc(80); d != "" {
+						fmt.Printf("  %s      %s %s\n",
+							amberStyle.Render("│"),
+							dimStyle.Render("└─"),
+							whiteStyle.Render(d),
+						)
+					}
 					if len(need.Blocks) > 0 {
 						fmt.Printf("  %s      %s %s\n",
 							amberStyle.Render("│"),
@@ -263,7 +266,39 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 			)
 		}
 	}
+	if len(board.ParkedADRs) > 0 {
+		ids := make([]string, 0, len(board.ParkedADRs))
+		for _, p := range board.ParkedADRs {
+			ids = append(ids, p.RawID)
+		}
+		fmt.Printf("  %s  %s %s\n", amberStyle.Render("│"), dimStyle.Render("PARKED (not WIP):"), dimStyle.Render(truncate(strings.Join(ids, ", "), 44)))
+	}
 	SectionFrameEnd("WIP-8842")
+
+	if c := board.Candidates; c != nil && c.Configured {
+		if board.CandidatesGated() {
+			SectionFrameStart("CND-04", fmt.Sprintf("ADR CANDIDATES // GATED %d WAIT", len(c.Open)))
+			fmt.Printf("  %s  %s\n", amberStyle.Render("│"), dimStyle.Render(fmt.Sprintf("%d of %d slots used. Close or park an ADR first.", len(board.ActiveADRs), board.WIPLimit)))
+		} else {
+			SectionFrameStart("CND-04", fmt.Sprintf("ADR CANDIDATES // %d OPEN, %d FREE", len(c.Open), board.FreeSlots()))
+		}
+		for _, cand := range c.Open {
+			fmt.Printf("  %s  • %-5s %s\n", amberStyle.Render("│"), blueStyle.Render(cand.ID), whiteStyle.Render(truncate(cand.Title, 56)))
+		}
+		SectionFrameEnd("CND-3310")
+	}
+
+	if len(board.Fronts) > 0 {
+		SectionFrameStart("FRT-03", fmt.Sprintf("FRONTS // NON-ADR WORK %d/%d", len(board.Fronts), board.FrontsLimit))
+		for _, f := range board.Fronts {
+			fmt.Printf("  %s  • %-16s %s\n", amberStyle.Render("│"), blueStyle.Render(f.ID), whiteStyle.Render(truncate(f.Title, 40)))
+			fmt.Printf("  %s    %s %s\n", amberStyle.Render("│"), amberStyle.Render("NEXT:"), dimStyle.Render(truncate(f.Next, 52)))
+		}
+		if board.FrontsOver() {
+			fmt.Printf("  %s  %s\n", amberStyle.Render("│"), redStyle.Render(fmt.Sprintf("OVER LIMIT: %d fronts against a limit of %d", len(board.Fronts), board.FrontsLimit)))
+		}
+		SectionFrameEnd("FRT-7710")
+	}
 
 	// 4. Ready for Pod Hand-off: Accepted ADRs
 	SectionFrameStart("HND-02", "READY FOR SQUAD HAND-OFF // ACCEPTED ADRS")
@@ -280,12 +315,24 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 				blueStyle.Render(adr.DisplayName()),
 				whiteStyle.Render(truncate(adr.Title, 38)),
 			)
+			if adr.IsDispatched() {
+				fmt.Printf("  %s    %s %s\n",
+					amberStyle.Render("│"),
+					dimStyle.Render("DISPATCHED:"),
+					dimStyle.Render(truncate(adr.Dispatched, 48)),
+				)
+				continue
+			}
 			fmt.Printf("  %s    %s %s\n",
 				amberStyle.Render("│"),
 				dimStyle.Render("TASK:"),
 				dimStyle.Render(truncate(adr.NextAction, 52)),
 			)
 		}
+	}
+	if board.DispatchedHidden > 0 {
+		fmt.Printf("  %s  %s\n", amberStyle.Render("│"),
+			dimStyle.Render(fmt.Sprintf("%d dispatched ADRs not listed (--all-handoffs)", board.DispatchedHidden)))
 	}
 	SectionFrameEnd("REL-3109")
 
@@ -324,6 +371,9 @@ func PrintTerminalSummary(board *domain.DispatchBoard, outputPath string, dryRun
 	// 6. Tactical Telemetry & WIP Status Footer
 	fmt.Printf("\n %s\n", amberStyle.Render(strings.Repeat("━", 67)))
 	wipStatus := fmt.Sprintf("%d/%d SLOTS ENGAGED", len(board.ActiveADRs), board.WIPLimit)
+	if n := len(board.ParkedADRs); n > 0 {
+		wipStatus += fmt.Sprintf(" (%d parked)", n)
+	}
 
 	if board.ADRUnknown {
 		fmt.Printf(" %s  %s\n",
